@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Albion Market Analysis</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<!-- Заголовок -->
+<h2>Albion Market Analysis</h2>
+
+<!-- Секція контролів -->
+<div class="controls">
+    <div class="filter-section">
+        <!-- Дата і час -->
+        <div class="control-group">
+            <label for="dateFromInput">From:</label>
+            <input type="datetime-local" id="dateFromInput">
+
+            <label for="dateToInput">To:</label>
+            <input type="datetime-local" id="dateToInput">
+
+            <label for="timeScaleInput">Time-scale:</label>
+            <input type="number" id="timeScaleInput" value="6" min="1">
+        </div>
+
+        <!-- Категорії та ліміти -->
+        <div class="control-group">
+            <label for="categorySelect">Category:</label>
+            <select id="categorySelect">
+                <option value="All">All</option>
+            </select>
+
+            <label for="limitInput">Limit:</label>
+            <input type="number" id="limitInput" value="100" min="1">
+        </div>
+
+        <!-- Локації -->
+        <div class="control-group">
+            <label for="buyLocationSelect">Buy location:</label>
+            <select id="buyLocationSelect">
+                <option value="All">All</option>
+            </select>
+
+            <label for="sellLocationSelect">Sell location:</label>
+            <select id="sellLocationSelect">
+                <option value="All">All</option>
+            </select>
+        </div>
+
+        <!-- Кнопки управління -->
+        <div class="button-group">
+            <button id="swapBtn" class="action-button">
+                <span class="button-icon">🔄</span>
+                Swap Buy/Sell
+            </button>
+            <button id="reloadBtn" class="action-button">
+                <span class="button-icon">⟳</span>
+                Reload Data
+            </button>
+        </div>
+    </div>
+
+    <!-- Індикатор прогресу -->
+    <div class="progress-section">
+        <span id="progressIndicator"></span>
+    </div>
+</div>
+
+<!-- Підказки по метрикам -->
+<div class="metrics-info">
+    <div class="info-tooltip">
+        <span class="info-icon">ℹ️</span>
+        <div class="tooltip-content">
+            <h4>Metrics explanation:</h4>
+            <ul>
+                <li><strong>Coefficient:</strong> Sell/Buy price ratio</li>
+                <li><strong>5kk_amount:</strong> Items needed for 5M profit</li>
+                <li><strong>Smart Coefficient:</strong> Combined market efficiency score</li>
+            </ul>
+        </div>
+    </div>
+</div>
+
+<!-- Таблиця даних -->
+<div id="tableContainer">
+    <!-- Таблиця буде додана через JavaScript -->
+</div>
+
+<!-- Легенда кольорів -->
+<div class="color-legend">
+    <div class="legend-item">
+        <span class="color-sample high-value"></span>
+        <span>High profit potential</span>
+    </div>
+    <div class="legend-item">
+        <span class="color-sample medium-value"></span>
+        <span>Medium profit potential</span>
+    </div>
+    <div class="legend-item">
+        <span class="color-sample low-value"></span>
+        <span>Low profit potential</span>
+    </div>
+</div>
+
+<!-- Статус додатку -->
+<footer class="app-status">
+    <div class="status-info">
+        <span class="status-label">Last update:</span>
+        <span id="lastUpdateTime"></span>
+    </div>
+    <div class="status-info">
+        <span class="status-label">Items loaded:</span>
+        <span id="itemsCount"></span>
+    </div>
+</footer>
+
+<!-- Скрипти -->
+<script src="main.js"></script>
+</body>
+</html>

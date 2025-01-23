@@ -1,0 +1,377 @@
+/* Reset та базові стилі */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+    margin: 0;
+    padding: 0;
+    background-color: #f2f2f7;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
+    color: #1c1c1e;
+    line-height: 1.4;
+}
+
+/* Заголовок */
+h2 {
+    margin: 0;
+    padding: 16px 20px;
+    background-color: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+    font-weight: 500;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+}
+
+/* Контроли */
+.controls {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding: 16px;
+    background-color: #fff;
+    margin: 12px;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.filter-section {
+    display: inline-block;
+    max-width: 900px;
+}
+
+.filter-section label {
+    display: inline-block;
+    margin-right: 12px;
+    margin-bottom: 12px;
+    color: #3a3a3c;
+    font-weight: 500;
+}
+
+/* Інпути та селекти */
+input[type="datetime-local"],
+input[type="number"],
+select {
+    padding: 8px 12px;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: 8px;
+    font-size: 14px;
+    background-color: #f9f9f9;
+    color: #000;
+    transition: all 0.2s ease;
+}
+
+input[type="number"] {
+    width: 80px;
+}
+
+select {
+    min-width: 150px;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L5 5L9 1' stroke='%238E8E93' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    padding-right: 32px;
+}
+
+input:focus,
+select:focus {
+    outline: none;
+    border-color: #007AFF;
+    box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.1);
+}
+
+/* Кнопки */
+button {
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+#swapBtn {
+    background-color: #5856D6;
+    color: white;
+    border: none;
+}
+
+#reloadBtn {
+    background-color: #007AFF;
+    color: white;
+    border: none;
+    margin-left: 8px;
+}
+
+#swapBtn:hover,
+#reloadBtn:hover {
+    opacity: 0.9;
+    transform: translateY(-1px);
+}
+
+#swapBtn:active,
+#reloadBtn:active {
+    transform: translateY(1px);
+}
+
+/* Індикатор прогресу */
+#progressIndicator {
+    font-weight: 500;
+    color: #8e8e93;
+    padding: 8px 12px;
+    background-color: rgba(142, 142, 147, 0.1);
+    border-radius: 8px;
+}
+
+/* Контейнер таблиці */
+#tableContainer {
+    margin: 12px;
+    background-color: #fff;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    padding: 16px;
+    overflow-x: auto;
+}
+
+/* Таблиця */
+table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 14px;
+}
+
+th, td {
+    padding: 12px;
+    text-align: left;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+th {
+    background-color: #f8f8f8;
+    font-weight: 600;
+    color: #3a3a3c;
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+th:hover {
+    background-color: #f0f0f0;
+    color: #007AFF;
+}
+
+td {
+    transition: background-color 0.2s;
+}
+
+tr:hover td {
+    background-color: rgba(0, 122, 255, 0.05);
+}
+
+/* Метрики та значення */
+.high-value {
+    color: #22c55e;
+    font-weight: 600;
+}
+
+.good-value {
+    color: #3b82f6;
+    font-weight: 500;
+}
+
+.low-value {
+    color: #ef4444;
+}
+
+.risk-high {
+    background-color: rgba(239, 68, 68, 0.1);
+}
+
+.risk-medium {
+    background-color: rgba(245, 158, 11, 0.1);
+}
+
+.risk-low {
+    background-color: rgba(34, 197, 94, 0.1);
+}
+
+/* Кнопки в таблиці */
+.select-row-btn,
+.recalculate-row-btn {
+    padding: 4px 8px;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    background-color: #fff;
+    border-radius: 6px;
+    margin-right: 4px;
+    font-size: 12px;
+    color: #007AFF;
+}
+
+.select-row-btn:hover,
+.recalculate-row-btn:hover {
+    background-color: rgba(0, 122, 255, 0.1);
+}
+
+/* Виділені рядки */
+.selected-row td {
+    background-color: rgba(0, 122, 255, 0.1) !important;
+}
+
+/* Редагування клітинок */
+.cell-edit-input {
+    width: 100%;
+    padding: 4px 8px;
+    border: 2px solid #007AFF;
+    border-radius: 4px;
+    font-size: inherit;
+    font-family: inherit;
+}
+
+/* Адаптивність */
+@media (max-width: 1200px) {
+    .filter-section {
+        max-width: 100%;
+    }
+}
+
+@media (max-width: 768px) {
+    .controls {
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .filter-section label {
+        display: block;
+        margin-bottom: 8px;
+    }
+
+    input[type="datetime-local"],
+    input[type="number"],
+    select {
+        width: 100%;
+    }
+
+    #swapBtn,
+    #reloadBtn {
+        width: 100%;
+        margin: 4px 0;
+    }
+}
+
+/* Доступність */
+@media (prefers-reduced-motion: reduce) {
+    * {
+        transition: none !important;
+    }
+}
+
+/* Темна тема */
+@media (prefers-color-scheme: dark) {
+    body {
+        background-color: #000;
+        color: #fff;
+    }
+
+    .controls,
+    #tableContainer {
+        background-color: #1c1c1e;
+    }
+
+    th {
+        background-color: #2c2c2e;
+        color: #fff;
+    }
+
+    td {
+        border-bottom-color: rgba(255, 255, 255, 0.1);
+    }
+
+    input[type="datetime-local"],
+    input[type="number"],
+    select {
+        background-color: #2c2c2e;
+        border-color: rgba(255, 255, 255, 0.2);
+        color: #fff;
+    }
+
+    .select-row-btn,
+    .recalculate-row-btn {
+        background-color: #2c2c2e;
+        border-color: rgba(255, 255, 255, 0.2);
+        color: #0A84FF;
+    }
+
+    th:hover {
+        background-color: #3a3a3c;
+    }
+
+    tr:hover td {
+        background-color: rgba(10, 132, 255, 0.1);
+    }
+}
+
+/* Додаткові стилі для нових метрик */
+.profit-positive {
+    color: #22c55e;
+    font-weight: 500;
+}
+
+.profit-negative {
+    color: #ef4444;
+    font-weight: 500;
+}
+
+.volume-high {
+    background-color: rgba(34, 197, 94, 0.1);
+}
+
+.volume-medium {
+    background-color: rgba(245, 158, 11, 0.1);
+}
+
+.volume-low {
+    background-color: rgba(239, 68, 68, 0.1);
+}
+
+/* Форматування чисел */
+.number-cell {
+    font-family: "SF Mono", SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    text-align: right;
+}
+
+/* Покращення для друку */
+@media print {
+    body {
+        background: white;
+    }
+
+    .controls {
+        display: none;
+    }
+
+    #tableContainer {
+        margin: 0;
+        padding: 0;
+        box-shadow: none;
+    }
+
+    .select-row-btn,
+    .recalculate-row-btn {
+        display: none;
+    }
+
+    th, td {
+        border: 1px solid #000;
+    }
+}
