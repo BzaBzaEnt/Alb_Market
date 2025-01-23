@@ -8,64 +8,79 @@
 </head>
 <body>
 <!-- Заголовок -->
-<h2>Albion Market Analysis</h2>
+<header class="header">
+    <h2>Albion Market Analysis</h2>
+    <button id="predictionsBtn" class="action-button">
+        <span class="button-icon">📈</span>
+        Predictions
+    </button>
+</header>
 
 <!-- Секція контролів -->
+<div class="filter-section">
+    <!-- Дата і час -->
+    <div class="control-group">
+        <label for="dateFromInput">From:</label>
+        <input type="datetime-local" id="dateFromInput">
+    </div>
+
+    <div class="control-group">
+        <label for="dateToInput">To:</label>
+        <input type="datetime-local" id="dateToInput">
+    </div>
+
+    <div class="control-group">
+        <label for="timeScaleInput">Time-scale:</label>
+        <input type="number" id="timeScaleInput" value="6" min="1">
+    </div>
+
+    <!-- Категорії та ліміти -->
+    <div class="control-group">
+        <label for="categorySelect">Category:</label>
+        <select id="categorySelect">
+            <option value="All">All</option>
+            <!-- Додайте інші опції за потребою -->
+        </select>
+    </div>
+
+    <div class="control-group">
+        <label for="limitInput">Limit:</label>
+        <input type="number" id="limitInput" value="100" min="1">
+    </div>
+
+    <!-- Локації -->
+    <div class="control-group">
+        <label for="buyLocationSelect">Buy location:</label>
+        <select id="buyLocationSelect">
+            <option value="All">All</option>
+            <!-- Додайте інші опції за потребою -->
+        </select>
+    </div>
+
+    <div class="control-group">
+        <label for="sellLocationSelect">Sell location:</label>
+        <select id="sellLocationSelect">
+            <option value="All">All</option>
+            <!-- Додайте інші опції за потребою -->
+        </select>
+    </div>
+</div>
+
+<!-- Кнопки управління -->
 <div class="controls">
-    <div class="filter-section">
-        <!-- Дата і час -->
-        <div class="control-group">
-            <label for="dateFromInput">From:</label>
-            <input type="datetime-local" id="dateFromInput">
+    <button id="swapBtn" class="action-button">
+        <span class="button-icon">🔄</span>
+        Swap Buy/Sell
+    </button>
+    <button id="reloadBtn" class="action-button">
+        <span class="button-icon">⟳</span>
+        Reload Data
+    </button>
+</div>
 
-            <label for="dateToInput">To:</label>
-            <input type="datetime-local" id="dateToInput">
-
-            <label for="timeScaleInput">Time-scale:</label>
-            <input type="number" id="timeScaleInput" value="6" min="1">
-        </div>
-
-        <!-- Категорії та ліміти -->
-        <div class="control-group">
-            <label for="categorySelect">Category:</label>
-            <select id="categorySelect">
-                <option value="All">All</option>
-            </select>
-
-            <label for="limitInput">Limit:</label>
-            <input type="number" id="limitInput" value="100" min="1">
-        </div>
-
-        <!-- Локації -->
-        <div class="control-group">
-            <label for="buyLocationSelect">Buy location:</label>
-            <select id="buyLocationSelect">
-                <option value="All">All</option>
-            </select>
-
-            <label for="sellLocationSelect">Sell location:</label>
-            <select id="sellLocationSelect">
-                <option value="All">All</option>
-            </select>
-        </div>
-
-        <!-- Кнопки управління -->
-        <div class="button-group">
-            <button id="swapBtn" class="action-button">
-                <span class="button-icon">🔄</span>
-                Swap Buy/Sell
-            </button>
-            <button id="reloadBtn" class="action-button">
-                <span class="button-icon">⟳</span>
-                Reload Data
-            </button>
-        </div>
-    </div>
-
-    <!-- Індикатор прогресу -->
-    <div class="progress-section">
-        <span id="progressIndicator"></span>
-    </div>
+<!-- Індикатор прогресу -->
+<div class="progress-section">
+    <span id="progressIndicator"></span>
 </div>
 
 <!-- Підказки по метрикам -->
@@ -117,6 +132,7 @@
 </footer>
 
 <!-- Скрипти -->
+<script src="DBModule.js"></script>
 <script src="main.js"></script>
 </body>
 </html>

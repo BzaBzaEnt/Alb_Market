@@ -11,7 +11,24 @@ const CONFIG = {
         MAX: 5.0
     },
     ITEMS_PER_CHUNK: 100,
-    RETRY_DELAY: 60 // seconds
+    RETRY_DELAY: 60, // seconds
+    STORAGE_KEYS: {
+        ITEMS_DATA: 'itemsData',
+        CHARTS_DATA: 'chartsData',
+        HISTORY_DATA: 'historyData'
+    },
+    INDEXEDDB: {
+        DB_NAME: "AlbionMarketDB", // Узгоджене ім'я
+        DB_VERSION: 1,
+        STORE_NAME: "dataStore"
+    }
+};
+
+// Ключі для LocalStorage/IndexedDB
+const STORAGE_KEYS = {
+    ITEMS_DATA: 'itemsData',
+    CHARTS_DATA: 'chartsData',
+    HISTORY_DATA: 'historyData'
 };
 
 // Глобальні змінні
@@ -93,6 +110,7 @@ const API = {
                 const cat = item.ShopCategory || item.ItemCategory || "Uncategorized";
                 categoryDict[uid] = cat;
             }
+            console.log("Items data fetched successfully.");
             return true;
         } catch (err) {
             console.error("fetchItems error:", err);
@@ -133,6 +151,7 @@ const API = {
                 }
             }
         }
+        console.log("Charts data fetched successfully.");
         return allResults;
     },
 
@@ -169,6 +188,7 @@ const API = {
                 }
             }
         }
+        console.log("History data fetched successfully.");
         return allResults;
     }
 };
@@ -578,6 +598,254 @@ const UI = {
     }
 };
 
+// Збереження даних у LocalStorage
+function saveDataToLocalStorage() {
+    try {
+        const itemsStr = JSON.stringify(itemsData);
+        const chartsStr = JSON.stringify(globalAllChartsData);
+        const historyStr = JSON.stringify(globalAllHistoryData);
+
+        console.log(`ItemsData size: ${(itemsStr.length / 1024).toFixed(2)} KB`);
+        console.log(`ChartsData size: ${(chartsStr.length / 1024).toFixed(2)} KB`);
+        console.log(`HistoryData size: ${(historyStr.length / 1024).toFixed(2)} KB`);
+
+        localStorage.setItem(STORAGE_KEYS.ITEMS_DATA, itemsStr);
+        localStorage.setItem(STORAGE_KEYS.CHARTS_DATA, chartsStr);
+        localStorage.setItem(STORAGE_KEYS.HISTORY_DATA, historyStr);
+        console.log("Дані успішно збережені в LocalStorage.");
+    } catch (err) {
+        console.error("Error saving to LocalStorage:", err);
+    }
+}
+
+// Завантаження даних з LocalStorage
+function loadDataFromLocalStorage() {
+    try {
+        const items = localStorage.getItem(STORAGE_KEYS.ITEMS_DATA);
+        const charts = localStorage.getItem(STORAGE_KEYS.CHARTS_DATA);
+        const history = localStorage.getItem(STORAGE_KEYS.HISTORY_DATA);
+
+        if (items && charts && history) {
+            itemsData = JSON.parse(items);
+            globalAllChartsData = JSON.parse(charts);
+            globalAllHistoryData = JSON.parse(history);
+
+            console.log("Дані завантажені з LocalStorage.");
+
+            // Відновлюємо namesDict та categoryDict
+            namesDict = {};
+            categoryDict = {};
+            itemsData.forEach(item => {
+                const uid = item.UniqueName;
+                if (!uid) return;
+                const locNames = item.LocalizedNames || {};
+                const enName = locNames["EN-US"] || item.LocalizationNameVariable || uid;
+                namesDict[uid] = enName;
+                const cat = item.ShopCategory || item.ItemCategory || "Uncategorized";
+                categoryDict[uid] = cat;
+            });
+
+            // Фільтруємо айтеми
+            filteredItemIds = DataProcessor.filterItemIds();
+
+            // Аналізуємо дані
+            globalRows = DataProcessor.analyzeAllData(globalAllChartsData, globalAllHistoryData, swapBuySell);
+            if (globalRows.length > 0) {
+                // Оновлюємо селекти локацій
+                updateLocationSelects();
+                // Рендеримо таблицю
+                UI.renderFilteredRows();
+                console.log("Дані успішно проаналізовані та відображені.");
+                return true;
+            }
+        }
+    } catch (err) {
+        console.error("Error loading from LocalStorage:", err);
+    }
+    return false;
+}
+
+// Очищення даних з LocalStorage
+function clearLocalStorageData() {
+    try {
+        localStorage.removeItem(STORAGE_KEYS.ITEMS_DATA);
+        localStorage.removeItem(STORAGE_KEYS.CHARTS_DATA);
+        localStorage.removeItem(STORAGE_KEYS.HISTORY_DATA);
+        console.log("Дані успішно очищені з LocalStorage.");
+    } catch (err) {
+        console.error("Error clearing LocalStorage:", err);
+    }
+}
+
+// IndexedDB функції
+function openDatabase() {
+    return new Promise((resolve, reject) => {
+        const request = indexedDB.open(CONFIG.INDEXEDDB.DB_NAME, CONFIG.INDEXEDDB.DB_VERSION);
+
+        request.onerror = (event) => {
+            console.error("IndexedDB error:", event.target.errorCode);
+            reject(event.target.errorCode);
+        };
+
+        request.onsuccess = (event) => {
+            resolve(event.target.result);
+        };
+
+        request.onupgradeneeded = (event) => {
+            const db = event.target.result;
+            if (!db.objectStoreNames.contains(CONFIG.INDEXEDDB.STORE_NAME)) {
+                db.createObjectStore(CONFIG.INDEXEDDB.STORE_NAME, { keyPath: "key" });
+            }
+        };
+    });
+}
+
+
+// Ініціалізація при завантаженні сторінки
+document.addEventListener("DOMContentLoaded", async () => {
+    const isPredictPage = document.body.getAttribute("data-page") === "predict";
+    console.log(`Page type: ${isPredictPage ? "Predict" : "Other"}`);
+
+    const predictionsBtn = document.getElementById("predictionsBtn");
+    if (predictionsBtn) {
+        predictionsBtn.addEventListener("click", () => {
+            window.location.href = "predict.html"; // Переконайтеся, що шлях до predict.html правильний
+        });
+    }
+    if (isPredictPage) {
+        initializeTabs(); // Ініціалізуємо вкладки
+        await loadAndAnalyzeData();
+
+        // Додамо слухача для кнопки повернення на головну
+        const backToMainBtn = document.getElementById("backToMainBtn");
+        if (backToMainBtn) {
+            backToMainBtn.addEventListener("click", () => {
+                window.location.href = "index.html"; // Замініть "index.html" на ваш основний файл
+            });
+        }
+    } else {
+        // Основний модуль продовжує свою роботу
+        // (Ваш основний модуль уже повинен працювати з IndexedDB)
+    }
+});
+
+
+async function saveDataToIndexedDB() {
+    try {
+        const db = await openDatabase();
+        const transaction = db.transaction(["dataStore"], "readwrite");
+        const store = transaction.objectStore("dataStore");
+
+        store.put({ key: STORAGE_KEYS.ITEMS_DATA, value: itemsData });
+        store.put({ key: STORAGE_KEYS.CHARTS_DATA, value: globalAllChartsData });
+        store.put({ key: STORAGE_KEYS.HISTORY_DATA, value: globalAllHistoryData });
+
+        return new Promise((resolve, reject) => {
+            transaction.oncomplete = () => {
+                console.log("Дані успішно збережені в IndexedDB.");
+                resolve();
+            };
+            transaction.onerror = (event) => {
+                console.error("IndexedDB transaction error:", event.target.errorCode);
+                reject(event.target.errorCode);
+            };
+        });
+    } catch (err) {
+        console.error("Error saving to IndexedDB:", err);
+    }
+}
+
+async function loadDataFromIndexedDB() {
+    try {
+        const db = await openDatabase();
+        const transaction = db.transaction(["dataStore"], "readonly");
+        const store = transaction.objectStore("dataStore");
+
+        const getItems = store.get(STORAGE_KEYS.ITEMS_DATA);
+        const getCharts = store.get(STORAGE_KEYS.CHARTS_DATA);
+        const getHistory = store.get(STORAGE_KEYS.HISTORY_DATA);
+
+        return new Promise((resolve, reject) => {
+            transaction.oncomplete = () => {
+                const items = getItems.result?.value;
+                const charts = getCharts.result?.value;
+                const history = getHistory.result?.value;
+
+                if (items && charts && history) {
+                    itemsData = items;
+                    globalAllChartsData = charts;
+                    globalAllHistoryData = history;
+
+                    console.log("Дані завантажені з IndexedDB.");
+
+                    // Відновлюємо namesDict та categoryDict
+                    namesDict = {};
+                    categoryDict = {};
+                    itemsData.forEach(item => {
+                        const uid = item.UniqueName;
+                        if (!uid) return;
+                        const locNames = item.LocalizedNames || {};
+                        const enName = locNames["EN-US"] || item.LocalizationNameVariable || uid;
+                        namesDict[uid] = enName;
+                        const cat = item.ShopCategory || item.ItemCategory || "Uncategorized";
+                        categoryDict[uid] = cat;
+                    });
+
+                    // Фільтруємо айтеми
+                    filteredItemIds = DataProcessor.filterItemIds();
+
+                    // Аналізуємо дані
+                    globalRows = DataProcessor.analyzeAllData(globalAllChartsData, globalAllHistoryData, swapBuySell);
+                    if (globalRows.length > 0) {
+                        // Оновлюємо селекти локацій
+                        updateLocationSelects();
+                        // Рендеримо таблицю
+                        UI.renderFilteredRows();
+                        console.log("Дані успішно проаналізовані та відображені.");
+                        resolve(true);
+                    } else {
+                        resolve(false);
+                    }
+                } else {
+                    resolve(false);
+                }
+            };
+
+            transaction.onerror = (event) => {
+                console.error("IndexedDB transaction error:", event.target.errorCode);
+                reject(event.target.errorCode);
+            };
+        });
+    } catch (err) {
+        console.error("Error loading from IndexedDB:", err);
+        return false;
+    }
+}
+
+async function clearIndexedDBData() {
+    try {
+        const db = await openDatabase();
+        const transaction = db.transaction(["dataStore"], "readwrite");
+        const store = transaction.objectStore("dataStore");
+        store.delete(STORAGE_KEYS.ITEMS_DATA);
+        store.delete(STORAGE_KEYS.CHARTS_DATA);
+        store.delete(STORAGE_KEYS.HISTORY_DATA);
+
+        return new Promise((resolve, reject) => {
+            transaction.oncomplete = () => {
+                console.log("Дані успішно очищені з IndexedDB.");
+                resolve();
+            };
+            transaction.onerror = (event) => {
+                console.error("IndexedDB transaction error:", event.target.errorCode);
+                reject(event.target.errorCode);
+            };
+        });
+    } catch (err) {
+        console.error("Error clearing IndexedDB:", err);
+    }
+}
+
 // Ініціалізація і завантаження
 async function onReloadData() {
     const progressEl = document.getElementById("progressIndicator");
@@ -663,6 +931,9 @@ async function onReloadData() {
         // Рендеримо таблицю
         UI.renderFilteredRows();
 
+        // Зберігаємо дані в IndexedDB
+        await saveDataToIndexedDB();
+
     } catch (error) {
         console.error("Reload error:", error);
         progressEl.textContent = `Error: ${error.message}`;
@@ -701,6 +972,14 @@ window.addEventListener("load", async () => {
     progressEl.textContent = "Loading items...";
 
     try {
+        // Перевіряємо наявність даних в IndexedDB
+        const hasCachedData = await loadDataFromIndexedDB();
+        if (hasCachedData) {
+            progressEl.textContent = "Loaded data from IndexedDB.";
+            return;
+        }
+
+        // Якщо даних немає, завантажуємо з API
         // Завантажуємо базові дані
         const success = await API.fetchItems();
         if (!success) {
@@ -731,7 +1010,11 @@ window.addEventListener("load", async () => {
         document.getElementById("dateToInput").value = Utils.formatDate(now);
 
         // Навішуємо обробники
-        document.getElementById("reloadBtn").addEventListener("click", onReloadData);
+        document.getElementById("reloadBtn").addEventListener("click", async () => {
+            // Очищуємо IndexedDB перед перезавантаженням даних
+            await clearIndexedDBData();
+            await onReloadData();
+        });
         document.getElementById("swapBtn").addEventListener("click", () => UI.toggleSwapBuySell());
 
         ["buyLocationSelect", "sellLocationSelect", "dateFromInput",
