@@ -1,3 +1,5 @@
+import { calculateProfitMetrics, groupChartsData, groupHistoryData, buildPairsWithHistory } from './calculation.js';
+
 // Конфігурація
 const CONFIG = {
     API: {
@@ -76,15 +78,6 @@ const Utils = {
             result.push(array.slice(i, i + size));
         }
         return result;
-    },
-
-    calculateProfitMetrics(buyPrice, sellPrice, buyCount, sellCount) {
-        const potentialProfit = (sellPrice - buyPrice) * Math.min(buyCount, sellCount);
-        const roi = ((sellPrice - buyPrice) / buyPrice) * 100;
-        return {
-            potentialProfit: Math.round(potentialProfit),
-            roi: roi.toFixed(2)
-        };
     }
 };
 
@@ -214,125 +207,10 @@ const DataProcessor = {
         });
     },
 
-    groupChartsData(chartsData) {
-        const grouped = {};
-        for (const entry of chartsData) {
-            const itemId = entry.item_id || "Unknown";
-            const qual = entry.quality || 1;
-            const loc = entry.location || "Unknown";
-
-            const prices = entry.data?.prices_avg || [];
-            const times = entry.data?.timestamps || [];
-            if (prices.length === 0) continue;
-
-            const lastPrice = prices[prices.length - 1];
-            const lastStamp = times[times.length - 1] || "";
-
-            const key = `${itemId}#q${qual}`;
-            if (!grouped[key]) grouped[key] = {};
-            grouped[key][loc] = { price: lastPrice, stamp: lastStamp };
-        }
-        return grouped;
-    },
-
-    groupHistoryData(historyData) {
-        const grouped = {};
-        for (const entry of historyData) {
-            const itemId = entry.item_id || "Unknown";
-            const qual = entry.quality || 1;
-            const loc = entry.location || "Unknown";
-
-            const arr = entry.data || [];
-            if (arr.length === 0) continue;
-
-            const lastObj = arr[arr.length - 1];
-            const key = `${itemId}#q${qual}`;
-            if (!grouped[key]) grouped[key] = {};
-            grouped[key][loc] = {
-                itemCount: lastObj.item_count,
-                avgPrice: lastObj.avg_price
-            };
-        }
-        return grouped;
-    },
-
-    buildPairsWithHistory(chartsGrouped, historyGrouped, isSwapped) {
-        const keys = Object.keys(chartsGrouped);
-        const rows = [];
-
-        for (const k of keys) {
-            const chartLocs = chartsGrouped[k];
-            const histLocs = historyGrouped[k] || {};
-            if (!chartLocs) continue;
-
-            for (const cityA of Object.keys(chartLocs)) {
-                for (const cityB of Object.keys(chartLocs)) {
-                    if (cityA === cityB || cityA === "Caerleon" || cityB === "Caerleon") continue;
-
-                    const chartA = chartLocs[cityA];
-                    const chartB = chartLocs[cityB];
-                    const histA = histLocs[cityA];
-                    const histB = histLocs[cityB];
-
-                    if (!chartA || !chartB || !histA || !histB) continue;
-                    if (histA.itemCount === 0 || histB.itemCount === 0) continue;
-
-                    let buyPrice = chartA.price;
-                    let sellPrice = chartB.price;
-                    let buyLoc = cityA;
-                    let sellLoc = cityB;
-
-                    if (isSwapped) {
-                        [buyPrice, sellPrice] = [sellPrice, buyPrice];
-                        [buyLoc, sellLoc] = [sellLoc, buyLoc];
-                    }
-
-                    if (buyPrice <= 0 || sellPrice <= 0) continue;
-
-                    const ratio = sellPrice / buyPrice;
-                    if (ratio < CONFIG.COEFFICIENT.MIN || ratio > CONFIG.COEFFICIENT.MAX) continue;
-
-                    const [itemId, qualityStr] = k.split("#q");
-                    const quality = parseInt(qualityStr, 10) || 1;
-                    const profitPerItem = sellPrice - buyPrice;
-                    const amount5kk = profitPerItem > 0 ? Math.ceil(5000000 / profitPerItem) : "N/A";
-
-                    let smartCoef = 0;
-                    if (typeof amount5kk === "number") {
-                        smartCoef = (ratio * (histA.itemCount + histB.itemCount)) / (amount5kk + 1);
-                    }
-
-                    const metrics = Utils.calculateProfitMetrics(buyPrice, sellPrice, histA.itemCount, histB.itemCount);
-
-                    rows.push({
-                        select: "",
-                        item_name: namesDict[itemId] || itemId,
-                        item_quality: quality,
-                        location_buy: buyLoc,
-                        buy_price: buyPrice,
-                        location_sell: sellLoc,
-                        sell_price: sellPrice,
-                        coefficient: +ratio.toFixed(3),
-                        "5kk_amount": amount5kk,
-                        timestamp: chartA.stamp,
-                        history_buyCount: histA.itemCount,
-                        history_sellCount: histB.itemCount,
-                        history_buyAvgPrice: histA.avgPrice,
-                        history_sellAvgPrice: histB.avgPrice,
-                        smart_coefficient: +smartCoef.toFixed(4),
-                        potential_profit: metrics.potentialProfit,
-                        roi: metrics.roi
-                    });
-                }
-            }
-        }
-        return rows.sort((a, b) => b.coefficient - a.coefficient);
-    },
-
     analyzeAllData(chartsData, historyData, isSwapped) {
-        const chartsGrouped = this.groupChartsData(chartsData);
-        const historyGrouped = this.groupHistoryData(historyData);
-        return this.buildPairsWithHistory(chartsGrouped, historyGrouped, isSwapped);
+        const chartsGrouped = groupChartsData(chartsData);
+        const historyGrouped = groupHistoryData(historyData);
+        return buildPairsWithHistory(chartsGrouped, historyGrouped, isSwapped, namesDict);
     }
 };
 
@@ -385,7 +263,6 @@ const UI = {
                 let value = row[col];
                 let classes = ['cell'];
 
-                // Спеціальне форматування
                 if (col === "select") {
                     value = `<button class="select-row-btn">⭐</button><button class="recalculate-row-btn">🔄</button>`;
                 } else if (col === "item_quality") {
@@ -436,12 +313,10 @@ const UI = {
         const table = document.getElementById("myTable");
         if (!table) return;
 
-        // Сортування
         table.querySelectorAll("thead th").forEach((header, index) => {
             header.addEventListener("click", () => this.sortTable(index));
         });
 
-        // Кнопки вибору і перерахунку
         table.querySelectorAll(".select-row-btn").forEach(btn => {
             btn.addEventListener("click", e => {
                 e.stopPropagation();
@@ -474,21 +349,18 @@ const UI = {
             const aVal = a.cells[colIndex].textContent;
             const bVal = b.cells[colIndex].textContent;
 
-            // Числа
             const numA = parseFloat(aVal.replace(/,/g, ''));
             const numB = parseFloat(bVal.replace(/,/g, ''));
             if (!isNaN(numA) && !isNaN(numB)) {
                 return direction ? numA - numB : numB - numA;
             }
 
-            // Дати
             const dateA = Utils.isDateString(aVal) ? new Date(aVal) : null;
             const dateB = Utils.isDateString(bVal) ? new Date(bVal) : null;
             if (dateA && dateB) {
                 return direction ? dateA - dateB : dateB - dateA;
             }
 
-            // Текст
             return direction
                 ? aVal.localeCompare(bVal)
                 : bVal.localeCompare(aVal);
@@ -562,29 +434,24 @@ const UI = {
         }
         cells[14].textContent = smartCoef.toFixed(4);
 
-        // Оновлюємо додаткові метрики
-        const metrics = Utils.calculateProfitMetrics(buyPrice, sellPrice, historyBuyCount, historySellCount);
+        const metrics = calculateProfitMetrics(buyPrice, sellPrice, historyBuyCount, historySellCount);
         cells[15].textContent = Utils.formatNumber(metrics.potentialProfit);
         cells[16].textContent = metrics.roi;
 
-        // Оновлюємо класи для стилізації
         this.updateRowStyles(row);
     },
 
     updateRowStyles(row) {
         const cells = row.cells;
 
-        // Коефіцієнт
         const coefCell = cells[7];
         const coefValue = parseFloat(coefCell.textContent);
         coefCell.className = this.getValueClass(coefValue);
 
-        // Smart коефіцієнт
         const smartCoefCell = cells[14];
         const smartCoefValue = parseFloat(smartCoefCell.textContent);
         smartCoefCell.className = this.getValueClass(smartCoefValue);
 
-        // ROI
         const roiCell = cells[16];
         const roiValue = parseFloat(roiCell.textContent);
         roiCell.className = this.getValueClass(roiValue);
@@ -597,85 +464,6 @@ const UI = {
         return '';
     }
 };
-
-// Збереження даних у LocalStorage
-function saveDataToLocalStorage() {
-    try {
-        const itemsStr = JSON.stringify(itemsData);
-        const chartsStr = JSON.stringify(globalAllChartsData);
-        const historyStr = JSON.stringify(globalAllHistoryData);
-
-        console.log(`ItemsData size: ${(itemsStr.length / 1024).toFixed(2)} KB`);
-        console.log(`ChartsData size: ${(chartsStr.length / 1024).toFixed(2)} KB`);
-        console.log(`HistoryData size: ${(historyStr.length / 1024).toFixed(2)} KB`);
-
-        localStorage.setItem(STORAGE_KEYS.ITEMS_DATA, itemsStr);
-        localStorage.setItem(STORAGE_KEYS.CHARTS_DATA, chartsStr);
-        localStorage.setItem(STORAGE_KEYS.HISTORY_DATA, historyStr);
-        console.log("Дані успішно збережені в LocalStorage.");
-    } catch (err) {
-        console.error("Error saving to LocalStorage:", err);
-    }
-}
-
-// Завантаження даних з LocalStorage
-function loadDataFromLocalStorage() {
-    try {
-        const items = localStorage.getItem(STORAGE_KEYS.ITEMS_DATA);
-        const charts = localStorage.getItem(STORAGE_KEYS.CHARTS_DATA);
-        const history = localStorage.getItem(STORAGE_KEYS.HISTORY_DATA);
-
-        if (items && charts && history) {
-            itemsData = JSON.parse(items);
-            globalAllChartsData = JSON.parse(charts);
-            globalAllHistoryData = JSON.parse(history);
-
-            console.log("Дані завантажені з LocalStorage.");
-
-            // Відновлюємо namesDict та categoryDict
-            namesDict = {};
-            categoryDict = {};
-            itemsData.forEach(item => {
-                const uid = item.UniqueName;
-                if (!uid) return;
-                const locNames = item.LocalizedNames || {};
-                const enName = locNames["EN-US"] || item.LocalizationNameVariable || uid;
-                namesDict[uid] = enName;
-                const cat = item.ShopCategory || item.ItemCategory || "Uncategorized";
-                categoryDict[uid] = cat;
-            });
-
-            // Фільтруємо айтеми
-            filteredItemIds = DataProcessor.filterItemIds();
-
-            // Аналізуємо дані
-            globalRows = DataProcessor.analyzeAllData(globalAllChartsData, globalAllHistoryData, swapBuySell);
-            if (globalRows.length > 0) {
-                // Оновлюємо селекти локацій
-                updateLocationSelects();
-                // Рендеримо таблицю
-                UI.renderFilteredRows();
-                console.log("Дані успішно проаналізовані та відображені.");
-                return true;
-            }
-        }
-    } catch (err) {
-        console.error("Error loading from LocalStorage:", err);
-    }
-    return false;
-}
-
-// Очищення даних з LocalStorage
-function clearLocalStorageData() {
-    try {
-        localStorage.removeItem(STORAGE_KEYS.ITEMS_DATA);
-        localStorage.removeItem(STORAGE_KEYS.CHARTS_DATA);
-        localStorage.removeItem(STORAGE_KEYS.HISTORY_DATA);
-        console.log("Дані успішно очищені з LocalStorage.");
-    } catch (err) {
-        console.error("Error clearing LocalStorage:", err);
-    }
-}
 
 // IndexedDB функції
 function openDatabase() {
@@ -699,334 +487,3 @@ function openDatabase() {
         };
     });
 }
-
-
-// Ініціалізація при завантаженні сторінки
-document.addEventListener("DOMContentLoaded", async () => {
-    const isPredictPage = document.body.getAttribute("data-page") === "predict";
-    console.log(`Page type: ${isPredictPage ? "Predict" : "Other"}`);
-
-    const predictionsBtn = document.getElementById("predictionsBtn");
-    if (predictionsBtn) {
-        predictionsBtn.addEventListener("click", () => {
-            window.location.href = "predict.html"; // Переконайтеся, що шлях до predict.html правильний
-        });
-    }
-    if (isPredictPage) {
-        initializeTabs(); // Ініціалізуємо вкладки
-        await loadAndAnalyzeData();
-
-        // Додамо слухача для кнопки повернення на головну
-        const backToMainBtn = document.getElementById("backToMainBtn");
-        if (backToMainBtn) {
-            backToMainBtn.addEventListener("click", () => {
-                window.location.href = "index.html"; // Замініть "index.html" на ваш основний файл
-            });
-        }
-    } else {
-        // Основний модуль продовжує свою роботу
-        // (Ваш основний модуль уже повинен працювати з IndexedDB)
-    }
-});
-
-
-async function saveDataToIndexedDB() {
-    try {
-        const db = await openDatabase();
-        const transaction = db.transaction(["dataStore"], "readwrite");
-        const store = transaction.objectStore("dataStore");
-
-        store.put({ key: STORAGE_KEYS.ITEMS_DATA, value: itemsData });
-        store.put({ key: STORAGE_KEYS.CHARTS_DATA, value: globalAllChartsData });
-        store.put({ key: STORAGE_KEYS.HISTORY_DATA, value: globalAllHistoryData });
-
-        return new Promise((resolve, reject) => {
-            transaction.oncomplete = () => {
-                console.log("Дані успішно збережені в IndexedDB.");
-                resolve();
-            };
-            transaction.onerror = (event) => {
-                console.error("IndexedDB transaction error:", event.target.errorCode);
-                reject(event.target.errorCode);
-            };
-        });
-    } catch (err) {
-        console.error("Error saving to IndexedDB:", err);
-    }
-}
-
-async function loadDataFromIndexedDB() {
-    try {
-        const db = await openDatabase();
-        const transaction = db.transaction(["dataStore"], "readonly");
-        const store = transaction.objectStore("dataStore");
-
-        const getItems = store.get(STORAGE_KEYS.ITEMS_DATA);
-        const getCharts = store.get(STORAGE_KEYS.CHARTS_DATA);
-        const getHistory = store.get(STORAGE_KEYS.HISTORY_DATA);
-
-        return new Promise((resolve, reject) => {
-            transaction.oncomplete = () => {
-                const items = getItems.result?.value;
-                const charts = getCharts.result?.value;
-                const history = getHistory.result?.value;
-
-                if (items && charts && history) {
-                    itemsData = items;
-                    globalAllChartsData = charts;
-                    globalAllHistoryData = history;
-
-                    console.log("Дані завантажені з IndexedDB.");
-
-                    // Відновлюємо namesDict та categoryDict
-                    namesDict = {};
-                    categoryDict = {};
-                    itemsData.forEach(item => {
-                        const uid = item.UniqueName;
-                        if (!uid) return;
-                        const locNames = item.LocalizedNames || {};
-                        const enName = locNames["EN-US"] || item.LocalizationNameVariable || uid;
-                        namesDict[uid] = enName;
-                        const cat = item.ShopCategory || item.ItemCategory || "Uncategorized";
-                        categoryDict[uid] = cat;
-                    });
-
-                    // Фільтруємо айтеми
-                    filteredItemIds = DataProcessor.filterItemIds();
-
-                    // Аналізуємо дані
-                    globalRows = DataProcessor.analyzeAllData(globalAllChartsData, globalAllHistoryData, swapBuySell);
-                    if (globalRows.length > 0) {
-                        // Оновлюємо селекти локацій
-                        updateLocationSelects();
-                        // Рендеримо таблицю
-                        UI.renderFilteredRows();
-                        console.log("Дані успішно проаналізовані та відображені.");
-                        resolve(true);
-                    } else {
-                        resolve(false);
-                    }
-                } else {
-                    resolve(false);
-                }
-            };
-
-            transaction.onerror = (event) => {
-                console.error("IndexedDB transaction error:", event.target.errorCode);
-                reject(event.target.errorCode);
-            };
-        });
-    } catch (err) {
-        console.error("Error loading from IndexedDB:", err);
-        return false;
-    }
-}
-
-async function clearIndexedDBData() {
-    try {
-        const db = await openDatabase();
-        const transaction = db.transaction(["dataStore"], "readwrite");
-        const store = transaction.objectStore("dataStore");
-        store.delete(STORAGE_KEYS.ITEMS_DATA);
-        store.delete(STORAGE_KEYS.CHARTS_DATA);
-        store.delete(STORAGE_KEYS.HISTORY_DATA);
-
-        return new Promise((resolve, reject) => {
-            transaction.oncomplete = () => {
-                console.log("Дані успішно очищені з IndexedDB.");
-                resolve();
-            };
-            transaction.onerror = (event) => {
-                console.error("IndexedDB transaction error:", event.target.errorCode);
-                reject(event.target.errorCode);
-            };
-        });
-    } catch (err) {
-        console.error("Error clearing IndexedDB:", err);
-    }
-}
-
-// Ініціалізація і завантаження
-async function onReloadData() {
-    const progressEl = document.getElementById("progressIndicator");
-    const tableContainer = document.getElementById("tableContainer");
-
-    progressEl.textContent = "";
-    tableContainer.innerHTML = "<p>Loading...</p>";
-
-    try {
-        const dateFromInput = document.getElementById("dateFromInput");
-        const dateToInput = document.getElementById("dateToInput");
-        const timeScaleInput = document.getElementById("timeScaleInput");
-        const categorySelect = document.getElementById("categorySelect");
-
-        let dateFromValue = dateFromInput.value || new Date(Date.now() - 24 * 3600 * 1000).toISOString();
-        let dateToValue = dateToInput.value || new Date().toISOString();
-
-        if (!dateFromValue.includes("Z")) dateFromValue += ":00Z";
-        if (!dateToValue.includes("Z")) dateToValue += ":00Z";
-
-        const timeScale = parseInt(timeScaleInput.value) || 6;
-        const selectedCategory = categorySelect.value;
-
-        // Фільтруємо айтеми за категорією
-        const itemIdsForRequest = filteredItemIds.filter(id => {
-            const category = categoryDict[id] || "Uncategorized";
-            return selectedCategory === "All" || category === selectedCategory;
-        });
-
-        if (itemIdsForRequest.length === 0) {
-            progressEl.textContent = "No items found for category.";
-            tableContainer.innerHTML = "<p>Empty result.</p>";
-            return;
-        }
-
-        // Рахуємо чанки
-        const totalChartsChunks = Math.ceil(itemIdsForRequest.length / CONFIG.ITEMS_PER_CHUNK);
-        const totalHistoryChunks = totalChartsChunks;
-        const totalChunksGlobal = totalChartsChunks + totalHistoryChunks;
-        const chunkIndexRef = {current: 0};
-
-        // Завантажуємо дані
-        const [chartsData, historyData] = await Promise.all([
-            API.fetchChartsDataByChunks(
-                itemIdsForRequest,
-                dateFromValue,
-                dateToValue,
-                timeScale,
-                progressEl,
-                chunkIndexRef,
-                totalChunksGlobal
-            ),
-            API.fetchHistoryDataByChunks(
-                itemIdsForRequest,
-                dateFromValue,
-                dateToValue,
-                timeScale,
-                progressEl,
-                chunkIndexRef,
-                totalChunksGlobal
-            )
-        ]);
-
-        if (!chartsData.length && !historyData.length) {
-            tableContainer.innerHTML = "<p>No data from API.</p>";
-            return;
-        }
-
-        // Зберігаємо дані
-        globalAllChartsData = chartsData;
-        globalAllHistoryData = historyData;
-
-        // Аналізуємо
-        globalRows = DataProcessor.analyzeAllData(chartsData, historyData, swapBuySell);
-        if (!globalRows.length) {
-            tableContainer.innerHTML = "<p>No valid data found.</p>";
-            return;
-        }
-
-        // Оновлюємо селекти локацій
-        updateLocationSelects();
-
-        // Рендеримо таблицю
-        UI.renderFilteredRows();
-
-        // Зберігаємо дані в IndexedDB
-        await saveDataToIndexedDB();
-
-    } catch (error) {
-        console.error("Reload error:", error);
-        progressEl.textContent = `Error: ${error.message}`;
-        tableContainer.innerHTML = "<p>Error loading data.</p>";
-    }
-}
-
-function updateLocationSelects() {
-    const buyLocs = new Set();
-    const sellLocs = new Set();
-
-    globalRows.forEach(row => {
-        buyLocs.add(row.location_buy);
-        sellLocs.add(row.location_sell);
-    });
-
-    const buySelect = document.getElementById("buyLocationSelect");
-    const sellSelect = document.getElementById("sellLocationSelect");
-
-    function updateSelect(select, options) {
-        const currentValue = select.value;
-        select.innerHTML = '<option value="All">All</option>' +
-            Array.from(options).sort().map(loc =>
-                `<option value="${loc}">${loc}</option>`
-            ).join('');
-        select.value = currentValue;
-    }
-
-    updateSelect(buySelect, buyLocs);
-    updateSelect(sellSelect, sellLocs);
-}
-
-// Ініціалізація при завантаженні
-window.addEventListener("load", async () => {
-    const progressEl = document.getElementById("progressIndicator");
-    progressEl.textContent = "Loading items...";
-
-    try {
-        // Перевіряємо наявність даних в IndexedDB
-        const hasCachedData = await loadDataFromIndexedDB();
-        if (hasCachedData) {
-            progressEl.textContent = "Loaded data from IndexedDB.";
-            return;
-        }
-
-        // Якщо даних немає, завантажуємо з API
-        // Завантажуємо базові дані
-        const success = await API.fetchItems();
-        if (!success) {
-            progressEl.textContent = "Failed to load item data.";
-            return;
-        }
-
-        // Фільтруємо айтеми
-        filteredItemIds = DataProcessor.filterItemIds();
-
-        // Заповнюємо категорії
-        const categories = new Set();
-        filteredItemIds.forEach(id => {
-            categories.add(categoryDict[id] || "Uncategorized");
-        });
-
-        const categorySelect = document.getElementById("categorySelect");
-        categorySelect.innerHTML = '<option value="All">All</option>' +
-            Array.from(categories).sort().map(cat =>
-                `<option value="${cat}">${cat}</option>`
-            ).join('');
-
-        // Встановлюємо дати за замовчуванням
-        const now = new Date();
-        const yesterday = new Date(now.getTime() - 24 * 3600 * 1000);
-
-        document.getElementById("dateFromInput").value = Utils.formatDate(yesterday);
-        document.getElementById("dateToInput").value = Utils.formatDate(now);
-
-        // Навішуємо обробники
-        document.getElementById("reloadBtn").addEventListener("click", async () => {
-            // Очищуємо IndexedDB перед перезавантаженням даних
-            await clearIndexedDBData();
-            await onReloadData();
-        });
-        document.getElementById("swapBtn").addEventListener("click", () => UI.toggleSwapBuySell());
-
-        ["buyLocationSelect", "sellLocationSelect", "dateFromInput",
-            "dateToInput", "limitInput"].forEach(id => {
-            document.getElementById(id).addEventListener("change", () => UI.renderFilteredRows());
-        });
-
-        // Перше завантаження
-        await onReloadData();
-
-    } catch (error) {
-        console.error("Initialization error:", error);
-        progressEl.textContent = "Failed to initialize application.";
-    }
-});
