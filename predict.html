@@ -1,13 +1,13 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <title>Albion Market Trends & Predictions</title>
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style.css"/>
 </head>
 <body data-page="predict">
-<!-- Навігаційна панель -->
+<!-- Navigation Header -->
 <header class="header">
     <h2>Market Trends & Predictions</h2>
     <button id="backToMainBtn" class="action-button">
@@ -16,19 +16,20 @@
     </button>
 </header>
 
-<!-- Кнопка оновлення прогнозів -->
+<!-- Update Predictions Button -->
 <div class="controls">
     <button id="updatePredictDataBtn" class="action-button">Update Predictions</button>
 </div>
 
-<!-- Контейнер вкладок -->
+<!-- Tabs Container -->
 <div class="tabs" role="tablist">
     <button class="tab-button active" data-tab="trends" role="tab" aria-selected="true" aria-controls="trends">Market Trends</button>
     <button class="tab-button" data-tab="predictions" role="tab" aria-selected="false" aria-controls="predictions">Market Predictions</button>
+    <button class="tab-button" data-tab="analysis" role="tab" aria-selected="false" aria-controls="analysis">Black Market Analysis</button>
     <button class="tab-button" data-tab="blackMarket" role="tab" aria-selected="false" aria-controls="blackMarket">Potential Black Market</button>
 </div>
 
-<!-- Контейнери таблиць -->
+<!-- Tab Contents -->
 <div class="tab-content active" id="trends" role="tabpanel" aria-labelledby="trendsTab">
     <div id="trendsTableContainer">
         <p>Loading trends...</p>
@@ -41,44 +42,24 @@
     </div>
 </div>
 
+
+
+<div class="tab-content" id="analysis" role="tabpanel" aria-labelledby="blackMarketTab">
+    <!-- New container for detailed Carleon black market analysis -->
+    <div id="carleonAnalysisTableContainer">
+        <p>Loading Carleon black market data...</p>
+    </div>
+
+</div>
+
 <div class="tab-content" id="blackMarket" role="tabpanel" aria-labelledby="blackMarketTab">
+    <!-- Existing container for potential black market items -->
     <div id="blackMarketTableContainer">
         <p>Loading potential black market items...</p>
     </div>
 </div>
 
-<!-- Легенда кольорів -->
-<div class="color-legend">
-    <div class="legend-item">
-        <span class="color-sample high-value"></span>
-        <span>High profit potential</span>
-    </div>
-    <div class="legend-item">
-        <span class="color-sample medium-value"></span>
-        <span>Medium profit potential</span>
-    </div>
-    <div class="legend-item">
-        <span class="color-sample low-value"></span>
-        <span>Low profit potential</span>
-    </div>
-</div>
-
-<!-- Підказки по метрикам -->
-<div class="metrics-info">
-    <div class="info-tooltip">
-        <span class="info-icon">ℹ️</span>
-        <div class="tooltip-content">
-            <h4>Metrics explanation:</h4>
-            <ul>
-                <li><strong>Coefficient:</strong> Sell/Buy price ratio</li>
-                <li><strong>5kk_amount:</strong> Items needed for 5M profit</li>
-                <li><strong>Smart Coefficient:</strong> Combined market efficiency score</li>
-            </ul>
-        </div>
-    </div>
-</div>
-
-<!-- Статус додатку -->
+<!-- Application Status -->
 <footer class="app-status">
     <div class="status-info">
         <span class="status-label">Last update:</span>
@@ -86,8 +67,9 @@
     </div>
 </footer>
 
-<!-- Скрипти -->
+<!-- Scripts -->
 <script src="DBModule.js"></script>
+<!-- Reference the extended prediction module -->
 <script src="albion_prediction_module.js"></script>
 </body>
 </html>

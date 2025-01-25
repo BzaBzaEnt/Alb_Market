@@ -2,85 +2,63 @@
 const DBModule = (() => {
     async function openDatabase(config) {
         return new Promise((resolve, reject) => {
+
             const request = indexedDB.open(config.INDEXEDDB.DB_NAME, config.INDEXEDDB.DB_VERSION);
 
-            request.onerror = (event) => {
-                console.error("IndexedDB error:", event.target.errorCode);
-                reject(event.target.errorCode);
-            };
-
-            request.onsuccess = (event) => {
-                resolve(event.target.result);
-            };
-
-            request.onupgradeneeded = (event) => {
+            request.onupgradeneeded = event => {
                 const db = event.target.result;
+                // Create or open existing store
                 if (!db.objectStoreNames.contains(config.INDEXEDDB.STORE_NAME)) {
-                    db.createObjectStore(config.INDEXEDDB.STORE_NAME, { keyPath: "key" });
+                    db.createObjectStore(config.INDEXEDDB.STORE_NAME, {keyPath: "id", autoIncrement: true});
                 }
+            };
+
+            request.onsuccess = () => {
+                resolve(request.result);
+            };
+            request.onerror = () => {
+                reject(request.error);
             };
         });
     }
 
-    async function saveData(config, key, value) {
+    async function saveData(STORAGE_KEYS, itemsData, globalAllChartsData, globalAllHistoryData, config) {
         try {
-            const db = await openDatabase(config);
-            const transaction = db.transaction([config.INDEXEDDB.STORE_NAME], "readwrite");
-            const store = transaction.objectStore(config.INDEXEDDB.STORE_NAME);
-            store.put({ key, value });
+            const db = await openDatabase(config, STORAGE_KEYS);
+            const transaction = db.transaction(["dataStore"], "readwrite");
+            const store = transaction.objectStore("dataStore");
+
+            store.put({key: STORAGE_KEYS.ITEMS_DATA, value: itemsData});
+            store.put({key: STORAGE_KEYS.CHARTS_DATA, value: globalAllChartsData});
+            store.put({key: STORAGE_KEYS.HISTORY_DATA, value: globalAllHistoryData});
 
             return new Promise((resolve, reject) => {
                 transaction.oncomplete = () => {
-                    console.log(`Data saved for key: ${key}`);
+                    console.log("Дані успішно збережені в IndexedDB.");
                     resolve();
                 };
                 transaction.onerror = (event) => {
-                    console.error("Transaction error:", event.target.errorCode);
+                    console.error("IndexedDB transaction error:", event.target.errorCode);
                     reject(event.target.errorCode);
                 };
             });
-        } catch (error) {
-            console.error("saveData error:", error);
+        } catch (err) {
+            console.error("Error saving to IndexedDB:", err);
         }
     }
 
-    async function loadData(config, key) {
-        try {
-            const db = await openDatabase(config);
-            const transaction = db.transaction([config.INDEXEDDB.STORE_NAME], "readonly");
-            const store = transaction.objectStore(config.INDEXEDDB.STORE_NAME);
-            const request = store.get(key);
-
-            return new Promise((resolve, reject) => {
-                request.onsuccess = () => {
-                    if (request.result) {
-                        console.log(`Data loaded for key: ${key}`);
-                        resolve(request.result.value);
-                    } else {
-                        resolve(null);
-                    }
-                };
-                request.onerror = (event) => {
-                    console.error("Load data error:", event.target.errorCode);
-                    reject(event.target.errorCode);
-                };
-            });
-        } catch (error) {
-            console.error("loadData error:", error);
-            return null;
-        }
-    }
-
-    async function clearData(config, key) {
+    async function clearData(config, STORAGE_KEYS) {
         try {
             const db = await openDatabase(config);
             const transaction = db.transaction([config.INDEXEDDB.STORE_NAME], "readwrite");
             const store = transaction.objectStore(config.INDEXEDDB.STORE_NAME);
-            store.delete(key);
+            store.delete(STORAGE_KEYS.ITEMS_DATA);
+            store.delete(STORAGE_KEYS.CHARTS_DATA);
+            store.delete(STORAGE_KEYS.HISTORY_DATA);
 
             return new Promise((resolve, reject) => {
                 transaction.oncomplete = () => {
-                    console.log(`Data cleared for key: ${key}`);
+                    console.log(`Data cleared for: ${config.INDEXEDDB.STORE_NAME}`);
                     resolve();
                 };
                 transaction.onerror = (event) => {
@@ -93,9 +71,25 @@ const DBModule = (() => {
         }
     }
 
+    async function loadData(config, dataKey) {
+        // Decide which store to use
+        let storeName = config.INDEXEDDB.STORE_NAME;
+
+        const db = await openDatabase(config);
+        return new Promise((resolve, reject) => {
+            const tx = db.transaction(storeName, "readonly");
+            const store = tx.objectStore(storeName);
+            const request = store.getAll();
+            request.onsuccess = () => resolve(request.result);
+            request.onerror = () => reject(request.error);
+        });
+    }
+
+
     return {
         saveData,
-        loadData,
-        clearData
+        clearData,
+        openDatabase,
+        loadData
     };
 })();

@@ -1,39 +1,49 @@
-// albion_prediction_module.js
+// albion_prediction_module_extended.js
 
 (function(window) {
-    // Конфігурація
     const CONFIG = {
-        LOCATIONS: ["Fort Sterling", "Martlock", "Thetford", "Lymhurst"],
-        STORAGE_KEYS: { // Узгоджені ключі з основним модулем
+        LOCATIONS: ["Fort Sterling", "Martlock", "Thetford", "Lymhurst", "Black Market"],
+        STORAGE_KEYS: {
             ITEMS: "itemsData",
             CHARTS: "chartsData",
-            HISTORY: "historyData"
+            HISTORY: "historyData",
         },
-        INDEXEDDB: { // Узгоджена конфігурація з основним модулем
-            DB_NAME: "AlbionMarketDB", // Повинно збігатися з основним модулем
-            DB_VERSION: 1,
-            STORE_NAME: "dataStore"
+        INDEXEDDB: {
+            DB_NAME: "AlbionMarketDB",
+            DB_VERSION: 2,
+            STORE_NAME: "dataStore",
         }
     };
 
-    // Глобальні змінні
     let itemsData = [];
     let globalAllChartsData = [];
     let globalAllHistoryData = [];
+    let carleonBlackMarketData = [];
     let trends = {};
     let predictions = {};
+    let blackMarketAnalysis = {};
 
-    // Утиліти
     const Utils = {
         formatNumber(value) {
             return typeof value === 'number' ? value.toLocaleString('en-US') : value;
-        },
-        clearLocalStorage() {
-            Object.values(CONFIG.STORAGE_KEYS).forEach(key => localStorage.removeItem(key));
         }
     };
 
-    // Модуль прогнозування
+    document.addEventListener("DOMContentLoaded", async () => {
+        const isPredictPage = document.body.getAttribute("data-page") === "predict";
+        if (isPredictPage) {
+            initializeTabs();
+            await loadAndAnalyzeData();
+        }
+    });
+
+    const backToMainBtn = document.getElementById("backToMainBtn");
+    if (backToMainBtn) {
+        backToMainBtn.addEventListener("click", () => {
+            window.location.href = "index.html";
+        });
+    }
+
     const PredictionModule = {
         analyzeTrends(chartsData) {
             const trends = {};
@@ -66,124 +76,144 @@
             historyData.forEach(item => {
                 const itemId = item.item_id || "Unknown";
                 const sellCounts = item.data?.map(entry => entry.item_count) || [];
-                const avgSellCount = sellCounts.length > 0 ? sellCounts.reduce((sum, count) => sum + count, 0) / sellCounts.length : 0;
+                const avgSellCount = sellCounts.length > 0
+                    ? sellCounts.reduce((sum, count) => sum + count, 0) / sellCounts.length
+                    : 0;
                 predictions[itemId] = {
                     avgSellCount,
-                    highDemand: avgSellCount > 100, // Можна налаштувати поріг
+                    highDemand: avgSellCount > 100
                 };
             });
             return predictions;
         },
 
-        identifyPotentialBlackMarketItems() {
-            // Логіка для визначення потенційних айтемів на чорному ринку Карлеону
-            // Наприклад, айтеми з високою тенденцією до зростання та високим попитом
-            const potentialItems = {};
+        analyzeCarleonBlackMarket(blackMarketDataArray) {
+            const analysisResult = {};
+            // Simple logic: find items that are priced below the average of other cities (indicating potential profit)
+            // console.log(blackMarketDataArray, 'blackMarketDataArray')
+            blackMarketDataArray.forEach(entry => {
+                const itemId = entry?.item_id ?? "Unknown";
+                const cityAvgPrice = entry?.city_avg_price ?? 0;
+                const carleonPrice = entry?.carleon_price ?? 0;
+                // If Carleon’s black market price is low compared to average city price, mark as opportunity
+                analysisResult[itemId] = {
+                    cityAvgPrice,
+                    carleonPrice,
+                    profitable: carleonPrice < cityAvgPrice * 0.9 // 10% cheaper than average
+                };
+            });
 
+            return analysisResult;
+        },
+
+        // Identify potential black market items from combined data
+        identifyPotentialBlackMarketItems() {
+            const potentialItems = {};
             for (const [itemId, trendData] of Object.entries(trends)) {
                 const prediction = predictions[itemId];
-                if (prediction) {
-                    // Визначаємо критерії:
-                    // 1. Позитивна тенденція зростання більше 10 одиниць
-                    // 2. Високий попит (середній продаж > 100)
-                    // 3. Напрямок тенденції "upward"
-                    if (trendData.trend > 10 && prediction.highDemand && trendData.direction === "upward") {
+                const blackMarketEntry = blackMarketAnalysis[itemId];
+                if (prediction && blackMarketEntry) {
+                    // Criteria example: upward trend, high demand, and any profitable signal
+                    if (
+                        blackMarketEntry.profitable
+                    ) {
                         potentialItems[itemId] = {
                             trend: trendData.trend,
                             direction: trendData.direction,
                             avgSellCount: prediction.avgSellCount,
-                            highDemand: prediction.highDemand
+                            highDemand: prediction.highDemand,
+                            profitable: blackMarketEntry.profitable
                         };
                     }
                 }
             }
-
             return potentialItems;
         },
 
         analyzeExistingData() {
             trends = this.analyzeTrends(globalAllChartsData);
             predictions = this.predictDemand(globalAllHistoryData);
+            // New analysis step for Carleon black market data
+            blackMarketAnalysis = this.analyzeCarleonBlackMarket(carleonBlackMarketData);
+
             const potentialBlackMarketItems = this.identifyPotentialBlackMarketItems();
             TableRenderer.renderTrendsTable(trends);
             TableRenderer.renderPredictionsTable(predictions);
+            TableRenderer.renderBlackMarketAnalysisTable(blackMarketAnalysis);
             TableRenderer.renderPotentialBlackMarketTable(potentialBlackMarketItems);
-            updateLastUpdateTime();
         }
     };
 
-    // Відображення таблиць
+    // Extended renderer to show Carleon black market analysis
     const TableRenderer = {
-        renderTrendsTable(trends) {
+        renderTrendsTable(trendsObj) {
             const tableContainer = document.getElementById("trendsTableContainer");
             if (!tableContainer) return;
 
-            let html = '<table><thead><tr><th>Item ID</th><th>Trend</th><th>Direction</th></tr></thead><tbody>';
-            Object.entries(trends).forEach(([itemId, data]) => {
+            let html = "<table><thead><tr><th>Item ID</th><th>Trend</th><th>Direction</th></tr></thead><tbody>";
+            Object.entries(trendsObj).forEach(([itemId, data]) => {
                 html += `<tr><td>${itemId}</td><td>${Utils.formatNumber(data.trend)}</td><td>${data.direction}</td></tr>`;
             });
-            html += '</tbody></table>';
+            html += "</tbody></table>";
             tableContainer.innerHTML = html;
         },
 
-        renderPredictionsTable(predictions) {
+        renderPredictionsTable(predictionsObj) {
             const tableContainer = document.getElementById("predictionsTableContainer");
             if (!tableContainer) return;
 
-            let html = '<table><thead><tr><th>Item ID</th><th>Avg Sell Count</th><th>High Demand</th></tr></thead><tbody>';
-            Object.entries(predictions).forEach(([itemId, data]) => {
+            let html = "<table><thead><tr><th>Item ID</th><th>Avg Sell Count</th><th>High Demand</th></tr></thead><tbody>";
+            Object.entries(predictionsObj).forEach(([itemId, data]) => {
                 html += `<tr><td>${itemId}</td><td>${Utils.formatNumber(data.avgSellCount)}</td><td>${data.highDemand ? "Yes" : "No"}</td></tr>`;
             });
-            html += '</tbody></table>';
+            html += "</tbody></table>";
+
+            tableContainer.innerHTML = html;
+        },
+
+        // New table for black market analysis in Carleon
+        renderBlackMarketAnalysisTable(analysisObj) {
+            const tableContainer = document.getElementById("carleonAnalysisTableContainer");
+            if (!tableContainer) return;
+            let html = "<table><thead><tr><th>Item ID</th><th>City Avg Price</th><th>Carleon Price</th><th>Profitable?</th></tr></thead><tbody>";
+            if (Object.keys(analysisObj).length === 0) {
+                html += "<tr><td colspan='4'>No Carleon black market data found.</td></tr>";
+            } else {
+                Object.entries(analysisObj).forEach(([itemId, data]) => {
+                    html += `<tr>
+                                <td>${itemId}</td>
+                                <td>${Utils.formatNumber(data.cityAvgPrice)}</td>
+                                <td>${Utils.formatNumber(data.carleonPrice)}</td>
+                                <td>${data.profitable ? "Yes" : "No"}</td>
+                             </tr>`;
+                });
+            }
+            html += "</tbody></table>";
             tableContainer.innerHTML = html;
         },
 
         renderPotentialBlackMarketTable(potentialItems) {
-            const tableContainer = document.getElementById("blackMarketTableContainer"); // Використовуємо новий контейнер
+            const tableContainer = document.getElementById("blackMarketTableContainer");
             if (!tableContainer) return;
-
-            let html = '<table><thead><tr><th>Item ID</th><th>Trend</th><th>Direction</th><th>Avg Sell Count</th><th>High Demand</th></tr></thead><tbody>';
+            let html = "<table><thead><tr><th>Item ID</th><th>Trend</th><th>Direction</th><th>Avg Sell Count</th><th>High Demand</th><th>Profitable?</th></tr></thead><tbody>";
             if (Object.keys(potentialItems).length === 0) {
-                html += '<tr><td colspan="5">No potential black market items found.</td></tr>';
+                html += "<tr><td colspan='6'>No potential black market items found.</td></tr>";
             } else {
                 Object.entries(potentialItems).forEach(([itemId, data]) => {
-                    html += `<tr><td>${itemId}</td><td>${Utils.formatNumber(data.trend)}</td><td>${data.direction}</td><td>${Utils.formatNumber(data.avgSellCount)}</td><td>${data.highDemand ? "Yes" : "No"}</td></tr>`;
+                    html += `<tr>
+                                <td>${itemId}</td>
+                                <td>${Utils.formatNumber(data.trend)}</td>
+                                <td>${data.direction}</td>
+                                <td>${Utils.formatNumber(data.avgSellCount)}</td>
+                                <td>${data.highDemand ? "Yes" : "No"}</td>
+                                <td>${data.profitable ? "Yes" : "No"}</td>
+                             </tr>`;
                 });
             }
-            html += '</tbody></table>';
+            html += "</tbody></table>";
             tableContainer.innerHTML = html;
         }
     };
-
-    // Оновлення часу останнього оновлення
-    function updateLastUpdateTime() {
-        const lastUpdateEl = document.getElementById("lastUpdateTime");
-        if (lastUpdateEl) {
-            const now = new Date();
-            lastUpdateEl.textContent = now.toLocaleString();
-        }
-    }
-
-    // Завантаження даних та аналіз
-    async function loadAndAnalyzeData() {
-        console.log("Starting to load data for Predict module...");
-        const items = await DBModule.loadData(CONFIG, CONFIG.STORAGE_KEYS.ITEMS);
-        const charts = await DBModule.loadData(CONFIG, CONFIG.STORAGE_KEYS.CHARTS);
-        const history = await DBModule.loadData(CONFIG, CONFIG.STORAGE_KEYS.HISTORY);
-
-        if (items && charts && history) {
-            console.log("Data successfully loaded from IndexedDB. Proceeding with analysis.");
-            itemsData = items;
-            globalAllChartsData = charts;
-            globalAllHistoryData = history;
-            PredictionModule.analyzeExistingData();
-        } else {
-            console.warn("One or more datasets not found in IndexedDB. Cannot perform predictions.");
-            document.getElementById("trendsTableContainer").innerHTML = "<p>No cached trend data available.</p>";
-            document.getElementById("predictionsTableContainer").innerHTML = "<p>No cached prediction data available.</p>";
-            document.getElementById("blackMarketTableContainer").innerHTML = "<p>No cached black market data available.</p>";
-        }
-    }
 
     // Функція для ініціалізації вкладок
     function initializeTabs() {
@@ -191,7 +221,7 @@
         const tabContents = document.querySelectorAll('.tab-content');
 
         // Зчитуємо останню активну вкладку з localStorage
-        const activeTab = localStorage.getItem('activeTab') || 'trends';
+        const activeTab = 'trends';
 
         tabButtons.forEach(button => {
             const targetTab = button.getAttribute('data-tab');
@@ -219,36 +249,107 @@
         });
     }
 
-    // Ініціалізація при завантаженні сторінки
-    document.addEventListener("DOMContentLoaded", async () => {
-        const isPredictPage = document.body.getAttribute("data-page") === "predict";
-        console.log(`Page type: ${isPredictPage ? "Predict" : "Other"}`);
 
-        if (isPredictPage) {
-            initializeTabs(); // Ініціалізуємо вкладки
-            await loadAndAnalyzeData();
+    // Load data and perform extended analysis
+    async function loadAndAnalyzeData() {
+        console.log("Starting to load data including Carleon black market...");
+        const db = await DBModule.openDatabase(CONFIG);
 
-            // Додамо слухача для кнопки повернення на головну
-            const backToMainBtn = document.getElementById("backToMainBtn");
-            if (backToMainBtn) {
-                backToMainBtn.addEventListener("click", () => {
-                    window.location.href = "index.html"; // Замініть "index.html" на ваш основний файл
+        const transaction = db.transaction(["dataStore"], "readonly");
+        const store = transaction.objectStore("dataStore");
+
+        const getItems = store.get(CONFIG.STORAGE_KEYS.ITEMS);
+        const getCharts = store.get(CONFIG.STORAGE_KEYS.CHARTS);
+        const getHistory = store.get(CONFIG.STORAGE_KEYS.HISTORY);
+
+        return new Promise((resolve, reject) => {
+            transaction.oncomplete = () => {
+                itemsData = getItems.result?.value;
+                globalAllChartsData = getCharts.result?.value;
+                globalAllHistoryData = getHistory.result?.value;
+
+                const groupedData = globalAllHistoryData.reduce((acc, item) => {
+                    const { item_id, location, data } = item;
+
+                    if (!item_id) {
+                        console.warn("Об'єкт без itemTypeId:", item);
+                        return acc;
+                    }
+
+                    if (!acc[item_id]) {
+                        acc[item_id] = {
+                            nonBlackMarket: [],
+                            blackMarket: []
+                        };
+                    }
+
+                    if (typeof location === "string" && location.trim().toLowerCase() === "black market".toLowerCase()) {
+                        acc[item_id].blackMarket.push(...data);
+                    } else {
+                        acc[item_id].nonBlackMarket.push(...data);
+                    }
+
+                    return acc;
+                }, {});
+
+
+                const mappedData = Object.keys(groupedData).filter(item_id => {
+                    const { nonBlackMarket, blackMarket } = groupedData[item_id];
+                    return blackMarket.length > 0 && nonBlackMarket.length > 0;
+                }).map(item_id => {
+                    const { nonBlackMarket, blackMarket } = groupedData[item_id];
+
+                    // Обчислення city_avg_price як зваженого середнього по всіх не Black Market локаціях
+                    const cityAvgPrice = calculateWeightedAverage(nonBlackMarket);
+                    // Визначення carleon_price як останнього averagePrice у Black Market
+                    let carleonPrice = 0;
+                    if (blackMarket.length > 0) {
+                        const latestRecord = blackMarket[blackMarket.length - 1];
+                        carleonPrice = latestRecord.avg_price || 0;
+                    }
+
+                    return {
+                        item_id,
+                        city_avg_price: cityAvgPrice,
+                        carleon_price: carleonPrice,
+                    };
                 });
-            }
-        } else {
-            // Основний модуль продовжує свою роботу
-            // (Ваш основний модуль уже повинен працювати з IndexedDB)
-        }
-    });
 
-    // Додати слухач для кнопки Оновлення
-    document.getElementById("updatePredictDataBtn")?.addEventListener("click", async () => {
-        console.log("Update Predictions button clicked.");
-        await loadAndAnalyzeData();
-    });
 
-    // Експортуємо функції до глобального контексту (за необхідності)
-    window.initializeTabs = initializeTabs;
+                carleonBlackMarketData = mappedData
+
+                if (itemsData && globalAllChartsData && globalAllHistoryData) {
+                    console.log("All datasets found in IndexedDB. Proceeding with extended analysis.");
+                    PredictionModule.analyzeExistingData();
+                } else {
+                    console.warn("One or more datasets not found in IndexedDB. Cannot perform full predictions.");
+                }
+                resolve(true);
+            };
+
+            transaction.onerror = (event) => {
+                console.error("IndexedDB transaction error:", event.target.errorCode);
+                reject(event.target.errorCode);
+            };
+
+        });
+    }
+
+    function calculateWeightedAverage(arr) {
+        let total = 0;
+        let count = 0;
+        arr.forEach(item => {
+            const itemCount = item.item_count || 0;
+            const averagePrice = item.avg_price || 0;
+            total += averagePrice * itemCount;
+            count += itemCount;
+
+        });
+
+        return count > 0 ? total / count : 0;
+    }
+
+// Перемапування даних
+
     window.loadAndAnalyzeData = loadAndAnalyzeData;
-
 })(window);

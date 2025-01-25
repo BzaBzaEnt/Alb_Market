@@ -7,7 +7,7 @@ const CONFIG = {
         CHARTS: "https://europe.albion-online-data.com/api/v2/stats/Charts",
         HISTORY: "https://europe.albion-online-data.com/api/v2/stats/History"
     },
-    LOCATIONS: ["Fort Sterling", "Martlock", "Thetford", "Lymhurst"],
+    LOCATIONS: ["Fort Sterling", "Martlock", "Thetford", "Lymhurst", "Black Market"],
     COEFFICIENT: {
         MIN: 0.5,
         MAX: 5.0
@@ -15,14 +15,15 @@ const CONFIG = {
     ITEMS_PER_CHUNK: 100,
     RETRY_DELAY: 60, // seconds
     STORAGE_KEYS: {
-        ITEMS_DATA: 'itemsData',
-        CHARTS_DATA: 'chartsData',
-        HISTORY_DATA: 'historyData'
+        ITEMS: "itemsData",
+        CHARTS: "chartsData",
+        HISTORY: "historyData",
     },
     INDEXEDDB: {
-        DB_NAME: "AlbionMarketDB", // Узгоджене ім'я
-        DB_VERSION: 1,
-        STORE_NAME: "dataStore"
+        DB_NAME: "AlbionMarketDB",
+        DB_VERSION: 2,  // Increment DB version to trigger onupgradeneeded
+        // Existing store, plus add new store name
+        STORE_NAME: "dataStore",
     }
 };
 
@@ -465,29 +466,6 @@ const UI = {
     }
 };
 
-// IndexedDB функції
-function openDatabase() {
-    return new Promise((resolve, reject) => {
-        const request = indexedDB.open(CONFIG.INDEXEDDB.DB_NAME, CONFIG.INDEXEDDB.DB_VERSION);
-
-        request.onerror = (event) => {
-            console.error("IndexedDB error:", event.target.errorCode);
-            reject(event.target.errorCode);
-        };
-
-        request.onsuccess = (event) => {
-            resolve(event.target.result);
-        };
-
-        request.onupgradeneeded = (event) => {
-            const db = event.target.result;
-            if (!db.objectStoreNames.contains(CONFIG.INDEXEDDB.STORE_NAME)) {
-                db.createObjectStore(CONFIG.INDEXEDDB.STORE_NAME, {keyPath: "key"});
-            }
-        };
-    });
-}
-
 window.addEventListener("load", async () => {
     const progressEl = document.getElementById("progressIndicator");
     progressEl.textContent = "Loading items...";
@@ -496,7 +474,7 @@ window.addEventListener("load", async () => {
         // Навішуємо обробники
         document.getElementById("reloadBtn").addEventListener("click", async () => {
             // Очищуємо IndexedDB перед перезавантаженням даних
-            await clearIndexedDBData();
+            await DBModule.clearData(CONFIG, STORAGE_KEYS);
             await onReloadData();
         });
         document.getElementById("swapBtn").addEventListener("click", () => UI.toggleSwapBuySell());
@@ -595,7 +573,6 @@ async function onReloadData() {
         const totalHistoryChunks = totalChartsChunks;
         const totalChunksGlobal = totalChartsChunks + totalHistoryChunks;
         const chunkIndexRef = {current: 0};
-
         // Завантажуємо дані
         const [chartsData, historyData] = await Promise.all([
             API.fetchChartsDataByChunks(
@@ -641,7 +618,7 @@ async function onReloadData() {
         // Рендеримо таблицю
         UI.renderFilteredRows();
         // Зберігаємо дані в IndexedDB
-        await saveDataToIndexedDB();
+        await DBModule.saveData(STORAGE_KEYS, itemsData, globalAllChartsData, globalAllHistoryData, CONFIG);
 
     } catch (error) {
         console.error("Reload error:", error);
@@ -675,34 +652,10 @@ function updateLocationSelects() {
     updateSelect(sellSelect, sellLocs);
 }
 
-async function saveDataToIndexedDB() {
-    try {
-        const db = await openDatabase();
-        const transaction = db.transaction(["dataStore"], "readwrite");
-        const store = transaction.objectStore("dataStore");
-
-        store.put({key: STORAGE_KEYS.ITEMS_DATA, value: itemsData});
-        store.put({key: STORAGE_KEYS.CHARTS_DATA, value: globalAllChartsData});
-        store.put({key: STORAGE_KEYS.HISTORY_DATA, value: globalAllHistoryData});
-
-        return new Promise((resolve, reject) => {
-            transaction.oncomplete = () => {
-                console.log("Дані успішно збережені в IndexedDB.");
-                resolve();
-            };
-            transaction.onerror = (event) => {
-                console.error("IndexedDB transaction error:", event.target.errorCode);
-                reject(event.target.errorCode);
-            };
-        });
-    } catch (err) {
-        console.error("Error saving to IndexedDB:", err);
-    }
-}
-
 async function loadDataFromIndexedDB() {
     try {
-        const db = await openDatabase();
+        const db = await DBModule.openDatabase(CONFIG);
+
         const transaction = db.transaction(["dataStore"], "readonly");
         const store = transaction.objectStore("dataStore");
 
@@ -715,7 +668,6 @@ async function loadDataFromIndexedDB() {
                 const items = getItems.result?.value;
                 const charts = getCharts.result?.value;
                 const history = getHistory.result?.value;
-
                 if (items && charts && history) {
                     itemsData = items;
                     globalAllChartsData = charts;
@@ -767,28 +719,6 @@ async function loadDataFromIndexedDB() {
     }
 }
 
-async function clearIndexedDBData() {
-    try {
-        const db = await openDatabase();
-        const transaction = db.transaction(["dataStore"], "readwrite");
-        const store = transaction.objectStore("dataStore");
-        store.delete(STORAGE_KEYS.ITEMS_DATA);
-        store.delete(STORAGE_KEYS.CHARTS_DATA);
-        store.delete(STORAGE_KEYS.HISTORY_DATA);
 
-        return new Promise((resolve, reject) => {
-            transaction.oncomplete = () => {
-                console.log("Дані успішно очищені з IndexedDB.");
-                resolve();
-            };
-            transaction.onerror = (event) => {
-                console.error("IndexedDB transaction error:", event.target.errorCode);
-                reject(event.target.errorCode);
-            };
-        });
-    } catch (err) {
-        console.error("Error clearing IndexedDB:", err);
-    }
-}
 
 
