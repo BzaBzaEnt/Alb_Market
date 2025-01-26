@@ -1,5 +1,5 @@
-import { namesDict, categoryDict, setItemsData} from './store/global-data.js';
-import {UTILSModule} from './UTILSModule.js';
+import { namesDict, categoryDict, setItemsData} from '../store/global-data.js';
+import {UTILSModule} from '../ustils/UTILSModule.js';
 
 
 const  API = {

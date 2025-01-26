@@ -1,8 +1,8 @@
-import {buildPairsWithHistory, calculateProfitMetrics, groupChartsData, groupHistoryData} from './calculation.js';
+import {buildPairsWithHistory, calculateProfitMetrics, groupChartsData, groupHistoryData} from './services/calculation.js';
 import {itemsData, namesDict, categoryDict, setItemsData, setNamesDict, setCategoryDict} from './store/global-data.js';
-import {DBModule} from './DBModule.js';
-import {APIModule} from './APIModule.js';
-import {UTILSModule} from './UTILSModule.js';
+import {DBModule} from './services/DBModule.js';
+import {APIModule} from './services/APIModule.js';
+import {UTILSModule} from './ustils/UTILSModule.js';
 
 // Конфігурація
 const CONFIG = {
@@ -339,7 +339,7 @@ window.addEventListener("load", async () => {
             "dateToInput", "limitInput"].forEach(id => {
             document.getElementById(id).addEventListener("change", () => UI.renderFilteredRows());
         });
-        document.getElementById("predictionsBtn").addEventListener("click", () => window.location.href = 'predict.html');
+        document.getElementById("predictionsBtn").addEventListener("click", () => window.location.href = 'components/predictions/predict.html');
 
 
         // Перевіряємо наявність даних в IndexedDB

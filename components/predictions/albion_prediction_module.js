@@ -1,6 +1,6 @@
-import {UTILSModule} from './UTILSModule.js';
-import { itemsData, setItemsData} from "./store/global-data.js";
-import {DBModule} from "./DBModule.js";
+import {UTILSModule} from '../../ustils/UTILSModule.js';
+import { itemsData, setItemsData} from "../../store/global-data.js";
+import {DBModule} from "../../services/DBModule.js";
 
 (function(window) {
     // albion_prediction_module_extended.js
