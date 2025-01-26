@@ -103,6 +103,7 @@ export function buildPairsWithHistory(chartsGrouped, historyGrouped, isSwapped, 
 
                 rows.push({
                     select: "",
+                    itemId: itemId,
                     item_name: namesDict[itemId] || itemId,
                     item_quality: quality,
                     location_buy: buyLoc,
