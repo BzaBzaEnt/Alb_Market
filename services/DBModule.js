@@ -27,7 +27,7 @@ export const DBModule = (() => {
             const db = await openDatabase(config, STORAGE_KEYS);
             const transaction = db.transaction(["dataStore"], "readwrite");
             const store = transaction.objectStore("dataStore");
-
+                console.log(itemsData, 'itemsData')
             store.put({key: STORAGE_KEYS.ITEMS_DATA, value: itemsData});
             store.put({key: STORAGE_KEYS.CHARTS_DATA, value: globalAllChartsData});
             store.put({key: STORAGE_KEYS.HISTORY_DATA, value: globalAllHistoryData});

@@ -1,8 +1,8 @@
-import * as categories from "../data/categories.json"  with { type: "json" };
+import {allCategories} from "../data/categories.js";
 
 export let itemsData = [];
 export let namesDict = {};
-export let categoryDict = categories;
+export let categoryDict = allCategories;
 
 export function setItemsData(val) {
     itemsData = val;

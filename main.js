@@ -1,6 +1,7 @@
 import {buildPairsWithHistory, calculateProfitMetrics, groupChartsData, groupHistoryData} from './services/calculation.js';
 import {itemsData, namesDict, categoryDict, setItemsData, setNamesDict, setCategoryDict} from './store/global-data.js';
 import {DBModule} from './services/DBModule.js';
+import { dataItems } from './data/items.js';
 import {APIModule} from './services/APIModule.js';
 import {UTILSModule} from './ustils/UTILSModule.js';
 
@@ -350,7 +351,9 @@ window.addEventListener("load", async () => {
         }
         // Якщо даних немає, завантажуємо з API
         // Завантажуємо базові дані
+
         const success = await APIModule.fetchItems();
+
         if (!success) {
             progressEl.textContent = "Failed to load item data.";
             return;
@@ -422,6 +425,17 @@ async function onReloadData() {
             tableContainer.innerHTML = "<p>Empty result.</p>";
             return;
         }
+
+        const success = await APIModule.fetchItems();
+        console.log(success, 'success')
+
+        if (!success) {
+            progressEl.textContent = "Failed to load item data.";
+            return;
+        }
+
+        // Фільтруємо айтеми
+        filteredItemIds = DataProcessor.filterItemIds();
 
         // Рахуємо чанки
         const totalChartsChunks = Math.ceil(itemIdsForRequest.length / CONFIG.ITEMS_PER_CHUNK);

@@ -1,6 +1,7 @@
 import {UTILSModule} from '../../ustils/UTILSModule.js';
 import { itemsData, setItemsData} from "../../store/global-data.js";
 import {DBModule} from "../../services/DBModule.js";
+import {blackMarketCategories} from "../../data/categories.js";
 
 (function(window) {
     // albion_prediction_module_extended.js
@@ -263,8 +264,11 @@ import {DBModule} from "../../services/DBModule.js";
         return new Promise((resolve, reject) => {
             transaction.oncomplete = () => {
                 setItemsData(getItems.result?.value)
-                globalAllChartsData = getCharts.result?.value;
-                globalAllHistoryData = getHistory.result?.value;
+                globalAllChartsData = getCharts.result?.value.filter(el => blackMarketCategories.includes(el.Category));
+                globalAllHistoryData = getHistory.result?.value.filter(el => {
+                    console.log(el.Category)
+                    return blackMarketCategories.includes(el.Category)
+                });
 
                 const groupedData = globalAllHistoryData.reduce((acc, item) => {
                     const { item_id, location, data } = item;

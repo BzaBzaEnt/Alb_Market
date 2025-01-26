@@ -1,5 +1,6 @@
-import { namesDict, categoryDict, setItemsData} from '../store/global-data.js';
+import {namesDict, categoryDict, setItemsData, setNamesDict, setCategoryDict} from '../store/global-data.js';
 import {UTILSModule} from '../ustils/UTILSModule.js';
+import {dataItems} from "../data/items.js";
 
 
 const  API = {
@@ -13,18 +14,26 @@ const CONFIG = {
     RETRY_DELAY: 60, // seconds
 };
 export const APIModule = (() => {
-
-
         async function fetchItems() {
             try {
                 const response = await fetch(API.ITEMS);
                 if (!response.ok) {
                     throw new Error(`Items API error: ${response.status}`);
                 }
-                const data = await response.json();
+                let data = await response.json();
+                data = data.map(it => {
+                    const foundItem = dataItems.find(el => el.ItemID === it.UniqueName)
+                    if(foundItem) {
+                        return {
+                            ...it,
+                            ...foundItem
+                        }
+                    } else {
+                        return it;
+                    }
+                });
                 setItemsData(data)
-                namesDict = {};
-                categoryDict = {};
+                setNamesDict({})
 
                 for (const item of data) {
                     const uid = item.UniqueName;
@@ -32,8 +41,6 @@ export const APIModule = (() => {
                     const locNames = item.LocalizedNames || {};
                     const enName = locNames["EN-US"] || item.LocalizationNameVariable || uid;
                     namesDict[uid] = enName;
-                    const cat = item.ShopCategory || item.ItemCategory || "Uncategorized";
-                    categoryDict[uid] = cat;
                 }
                 console.log("Items data fetched successfully.");
                 return true;
@@ -67,7 +74,18 @@ export const APIModule = (() => {
                             throw new Error(`Charts API error: ${response.status}`);
                         }
 
-                        const data = await response.json();
+                        let data = await response.json();
+                        data = data.map(it => {
+                            const foundItem = dataItems.find(el => el.ItemID === it.item_id)
+                            if(foundItem) {
+                                return {
+                                    ...it,
+                                    ...foundItem
+                                }
+                            } else {
+                                return it;
+                            }
+                        });
                         allResults.push(...data);
                         break;
                     } catch (err) {
@@ -104,7 +122,19 @@ export const APIModule = (() => {
                             throw new Error(`History API error: ${response.status}`);
                         }
 
-                        const data = await response.json();
+                        let data = await response.json();
+                        data = data.map(it => {
+                            const foundItem = dataItems.find(el => el.ItemID === it.item_id)
+                            if(foundItem) {
+                                return {
+                                    ...it,
+                                    ...foundItem
+                                }
+                            } else {
+                                return it;
+                            }
+                        });
+
                         allResults.push(...data);
                         break;
                     } catch (err) {
