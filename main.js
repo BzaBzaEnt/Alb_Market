@@ -1,7 +1,11 @@
-import {buildPairsWithHistory, calculateProfitMetrics, groupChartsData, groupHistoryData} from './services/calculation.js';
-import {itemsData, namesDict, categoryDict, setItemsData, setNamesDict, setCategoryDict} from './store/global-data.js';
+import {
+    buildPairsWithHistory,
+    calculateProfitMetrics,
+    groupChartsData,
+    groupHistoryData
+} from './services/calculation.js';
+import {categoryDict, itemsData, namesDict, setCategoryDict, setItemsData, setNamesDict} from './store/global-data.js';
 import {DBModule} from './services/DBModule.js';
-import { dataItems } from './data/items.js';
 import {APIModule} from './services/APIModule.js';
 import {UTILSModule} from './ustils/UTILSModule.js';
 
@@ -110,31 +114,48 @@ const UI = {
         let html = '<table id="myTable"><thead><tr>';
 
         columns.forEach(col => {
-            const title = col.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-            html += `<th>${title}</th>`;
+            if(col !== 'itemId') {
+                const title = col.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                html += `<th>${title}</th>`;
+            }
         });
         html += '</tr></thead><tbody>';
 
         rows.forEach(row => {
+            const itemId = row.itemId;
             html += '<tr>';
             columns.forEach(col => {
-                let value = row[col];
-                let classes = ['cell'];
+               if(col !== 'itemId') {
+                   let value = row[col];
+                   let classes = ['cell'];
+                   console.log(row)
+                   if (col === "select") {
+                       value = `
+                               <div class="action-buttons">
+                                   <button
+                                      class="open-link-button"
+                                      onclick="window.open('https://albiononline2d.com/en/item/id/${itemId}', '_blank')"
+                                      title="Open AlbionOnline2D"
+                                    >
+                                      🔗
+                                    </button>
+                                    <button class="select-row-btn">⭐</button>
+                                    <button class="recalculate-row-btn">🔄</button>
+                                </div>
+                                 `;
+                   } else if (col === "item_quality") {
+                       value = (value - 1).toString();
+                   } else if (col.includes('price') || col === 'potential_profit') {
+                       value = UTILSModule.formatNumber(value);
+                       classes.push('number-cell');
+                   } else if (col.includes('coefficient') || col === 'roi') {
+                       if (value > 3) classes.push('high-value');
+                       else if (value > 2) classes.push('good-value');
+                       else if (value < 1.5) classes.push('low-value');
+                   }
 
-                if (col === "select") {
-                    value = `<button class="select-row-btn">⭐</button><button class="recalculate-row-btn">🔄</button>`;
-                } else if (col === "item_quality") {
-                    value = (value - 1).toString();
-                } else if (col.includes('price') || col === 'potential_profit') {
-                    value = UTILSModule.formatNumber(value);
-                    classes.push('number-cell');
-                } else if (col.includes('coefficient') || col === 'roi') {
-                    if (value > 3) classes.push('high-value');
-                    else if (value > 2) classes.push('good-value');
-                    else if (value < 1.5) classes.push('low-value');
-                }
-
-                html += `<td class="${classes.join(' ')}">${value}</td>`;
+                   html += `<td class="${classes.join(' ')}">${value}</td>`;
+               }
             });
             html += '</tr>';
         });

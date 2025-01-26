@@ -1,12 +1,9 @@
 import {UTILSModule} from '../../ustils/UTILSModule.js';
-import { itemsData, setItemsData} from "../../store/global-data.js";
+import {itemsData, setItemsData} from "../../store/global-data.js";
 import {DBModule} from "../../services/DBModule.js";
 import {blackMarketCategories} from "../../data/categories.js";
 
-(function(window) {
-    // albion_prediction_module_extended.js
-
-
+(function (window) {
     const CONFIG = {
         LOCATIONS: ["Fort Sterling", "Martlock", "Thetford", "Lymhurst", "Black Market"],
         STORAGE_KEYS: {
@@ -28,6 +25,7 @@ import {blackMarketCategories} from "../../data/categories.js";
     let predictions = {};
     let blackMarketAnalysis = {};
 
+
     document.addEventListener("DOMContentLoaded", async () => {
         const isPredictPage = document.body.getAttribute("data-page") === "predict";
         if (isPredictPage) {
@@ -39,9 +37,25 @@ import {blackMarketCategories} from "../../data/categories.js";
     const backToMainBtn = document.getElementById("backToMainBtn");
     if (backToMainBtn) {
         backToMainBtn.addEventListener("click", () => {
-            window.location.href = "index.html";
+            window.location.href = "../../index.html";
         });
     }
+
+    // Helper to map item_id -> item name
+    // Adjust if your itemsData structure differs.
+    function getItemNameById(itemId) {
+        const item = itemsData.find(item => {
+            return item.UniqueName === itemId
+        });
+        const locNames = item.LocalizedNames || {};
+
+        return  locNames["EN-US"] || item.LocalizationNameVariable || uid;
+    }
+
+    window.selectRow = function selectRow(buttonElem) {
+        const row = buttonElem.closest('tr');
+        row.classList.toggle('selected-row');
+    };
 
     const PredictionModule = {
         analyzeTrends(chartsData) {
@@ -56,9 +70,13 @@ import {blackMarketCategories} from "../../data/categories.js";
                 const prices = item.data?.prices_avg || [];
                 if (prices.length > 1) {
                     const trend = prices[prices.length - 1] - prices[0];
+                    const firstPrice = prices[0] || 0;
+                    const diffPercent = firstPrice ? ((trend / firstPrice) * 100).toFixed(2) : 0;
+
                     trends[itemId] = {
                         trend,
                         direction: trend > 0 ? "upward" : "downward",
+                        diffPercent
                     };
                 }
             });
@@ -78,8 +96,11 @@ import {blackMarketCategories} from "../../data/categories.js";
                 const avgSellCount = sellCounts.length > 0
                     ? sellCounts.reduce((sum, count) => sum + count, 0) / sellCounts.length
                     : 0;
+                const maxSellCount = Math.max(...sellCounts, 0);
+
                 predictions[itemId] = {
                     avgSellCount,
+                    maxSellCount,
                     highDemand: avgSellCount > 100
                 };
             });
@@ -88,40 +109,38 @@ import {blackMarketCategories} from "../../data/categories.js";
 
         analyzeCarleonBlackMarket(blackMarketDataArray) {
             const analysisResult = {};
-            // Simple logic: find items that are priced below the average of other cities (indicating potential profit)
-            // console.log(blackMarketDataArray, 'blackMarketDataArray')
             blackMarketDataArray.forEach(entry => {
                 const itemId = entry?.item_id ?? "Unknown";
                 const cityAvgPrice = entry?.city_avg_price ?? 0;
                 const carleonPrice = entry?.carleon_price ?? 0;
-                // If Carleon’s black market price is low compared to average city price, mark as opportunity
+                const priceDifference = cityAvgPrice - carleonPrice;
+
                 analysisResult[itemId] = {
                     cityAvgPrice,
                     carleonPrice,
-                    profitable: carleonPrice < cityAvgPrice * 0.9 // 10% cheaper than average
+                    profitable: carleonPrice < cityAvgPrice * 0.9,
+                    priceDifference
                 };
             });
-
             return analysisResult;
         },
 
-        // Identify potential black market items from combined data
         identifyPotentialBlackMarketItems() {
             const potentialItems = {};
             for (const [itemId, trendData] of Object.entries(trends)) {
                 const prediction = predictions[itemId];
                 const blackMarketEntry = blackMarketAnalysis[itemId];
                 if (prediction && blackMarketEntry) {
-                    // Criteria example: upward trend, high demand, and any profitable signal
-                    if (
-                        blackMarketEntry.profitable
-                    ) {
+                    if (blackMarketEntry.profitable) {
                         potentialItems[itemId] = {
                             trend: trendData.trend,
+                            diffPercent: trendData.diffPercent,
                             direction: trendData.direction,
                             avgSellCount: prediction.avgSellCount,
+                            maxSellCount: prediction.maxSellCount,
                             highDemand: prediction.highDemand,
-                            profitable: blackMarketEntry.profitable
+                            profitable: blackMarketEntry.profitable,
+                            priceDifference: blackMarketEntry.priceDifference
                         };
                     }
                 }
@@ -132,7 +151,6 @@ import {blackMarketCategories} from "../../data/categories.js";
         analyzeExistingData() {
             trends = this.analyzeTrends(globalAllChartsData);
             predictions = this.predictDemand(globalAllHistoryData);
-            // New analysis step for Carleon black market data
             blackMarketAnalysis = this.analyzeCarleonBlackMarket(carleonBlackMarketData);
 
             const potentialBlackMarketItems = this.identifyPotentialBlackMarketItems();
@@ -143,83 +161,330 @@ import {blackMarketCategories} from "../../data/categories.js";
         }
     };
 
-    // Extended renderer to show Carleon black market analysis
     const TableRenderer = {
+        currentSort: {
+            tableId: null,
+            columnKey: null,
+            direction: 1
+        },
+
+        sortTable(tableId, data, columnKey, renderFn) {
+            if (
+                this.currentSort.tableId === tableId &&
+                this.currentSort.columnKey === columnKey
+            ) {
+                this.currentSort.direction *= -1;
+            } else {
+                this.currentSort.tableId = tableId;
+                this.currentSort.columnKey = columnKey;
+                this.currentSort.direction = 1;
+            }
+
+            data.sort((a, b) => {
+                if (typeof a[1][columnKey] === "string") {
+                    return (
+                        a[1][columnKey].localeCompare(b[1][columnKey]) *
+                        this.currentSort.direction
+                    );
+                } else {
+                    return (a[1][columnKey] - b[1][columnKey]) * this.currentSort.direction;
+                }
+            });
+
+            renderFn(Object.fromEntries(data));
+        },
+
         renderTrendsTable(trendsObj) {
             const tableContainer = document.getElementById("trendsTableContainer");
             if (!tableContainer) return;
 
-            let html = "<table><thead><tr><th>Item ID</th><th>Trend</th><th>Direction</th></tr></thead><tbody>";
-            Object.entries(trendsObj).forEach(([itemId, data]) => {
-                html += `<tr><td>${itemId}</td><td>${UTILSModule.formatNumber(data.trend)}</td><td>${data.direction}</td></tr>`;
+            const trendsArray = Object.entries(trendsObj);
+
+            let html = `
+                    <table>
+                       <thead>
+                          <tr>
+                            <th></th>
+                            <th class="sortable" data-column="itemName">Item Name</th>
+                            <th class="sortable" data-column="trend">Trend</th>
+                            <th class="sortable" data-column="direction">Direction</th>
+                            <th class="sortable" data-column="diffPercent">% Change</th>
+                          </tr>
+                        </thead>
+                      <tbody>
+      `;
+
+            trendsArray.forEach(([itemId, data]) => {
+                const itemName = getItemNameById(itemId);
+                html += `
+          <tr>
+            <td>
+              <!-- Open link button -->
+              <button
+                class="open-link-button"
+                onclick="window.open('https://albiononline2d.com/en/item/id/${itemId}','_blank')"
+                title="Open AlbionOnline2D"
+              >
+                🔗
+              </button>
+
+              <!-- Select (star) button toggles row highlight -->
+              <button
+                class="select-button"
+                onclick="selectRow(this)"
+                title="Select Item"
+              >
+                ⭐
+              </button>
+            </td>
+            <td>${itemName}</td>
+            <td>${UTILSModule.formatNumber(data.trend)}</td>
+            <td>${data.direction}</td>
+            <td>${data.diffPercent ?? "0"}%</td>
+          </tr>
+        `;
             });
-            html += "</tbody></table>";
+
+            html += `</tbody></table>`;
             tableContainer.innerHTML = html;
+
+            const tableElem = tableContainer.querySelector("table");
+            const headers = tableElem.querySelectorAll(".sortable");
+            headers.forEach((header) => {
+                const column = header.getAttribute("data-column");
+                header.addEventListener("click", () => {
+                    this.sortTable(
+                        "trends",
+                        [...trendsArray],
+                        column === "itemId" ? 0 : column,
+                        (sortedData) => {
+                            this.renderTrendsTable(sortedData);
+                        }
+                    );
+                });
+            });
         },
 
         renderPredictionsTable(predictionsObj) {
             const tableContainer = document.getElementById("predictionsTableContainer");
             if (!tableContainer) return;
 
-            let html = "<table><thead><tr><th>Item ID</th><th>Avg Sell Count</th><th>High Demand</th></tr></thead><tbody>";
-            Object.entries(predictionsObj).forEach(([itemId, data]) => {
-                html += `<tr><td>${itemId}</td><td>${UTILSModule.formatNumber(data.avgSellCount)}</td><td>${data.highDemand ? "Yes" : "No"}</td></tr>`;
-            });
-            html += "</tbody></table>";
+            const predictionsArray = Object.entries(predictionsObj);
 
+            let html = `
+                <table>
+                    <thead>
+                        <tr>
+                            <th></th>
+                            <th class="sortable" data-column="itemName">Item Name</th>
+                            <th class="sortable" data-column="avgSellCount">Avg Sell Count</th>
+                            <th class="sortable" data-column="maxSellCount">Max Sell Count</th>
+                            <th class="sortable" data-column="highDemand">High Demand?</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            predictionsArray.forEach(([itemId, data]) => {
+                const itemName = getItemNameById(itemId);
+                html += `
+                    <tr>
+                        <td>
+                            <button
+                              class="open-link-button"
+                              onclick="window.open('https://albiononline2d.com/en/item/id/${itemId}', '_blank')"
+                              title="Open AlbionOnline2D"
+                            >
+                              🔗
+                            </button>
+                          <button
+                            class="select-button"
+                            onclick="selectRow(this)"
+                            title="Select Item"
+                          >
+                            ⭐
+                          </button>
+                        </td>
+                        <td>${itemName}</td>
+                        <td>${UTILSModule.formatNumber(data.avgSellCount)}</td>
+                        <td>${UTILSModule.formatNumber(data.maxSellCount)}</td>
+                        <td>${data.highDemand ? "Yes" : "No"}</td>
+                    </tr>
+                `;
+            });
+
+            html += `</tbody></table>`;
             tableContainer.innerHTML = html;
+
+            const tableElem = tableContainer.querySelector("table");
+            const headers = tableElem.querySelectorAll(".sortable");
+            headers.forEach((header) => {
+                const column = header.getAttribute("data-column");
+                header.addEventListener("click", () => {
+                    this.sortTable(
+                        "predictions",
+                        [...predictionsArray],
+                        column === "itemId" ? 0 : column,
+                        (sortedData) => this.renderPredictionsTable(sortedData)
+                    );
+                });
+            });
         },
 
-        // New table for black market analysis in Carleon
         renderBlackMarketAnalysisTable(analysisObj) {
             const tableContainer = document.getElementById("carleonAnalysisTableContainer");
             if (!tableContainer) return;
-            let html = "<table><thead><tr><th>Item ID</th><th>City Avg Price</th><th>Carleon Price</th><th>Profitable?</th></tr></thead><tbody>";
-            if (Object.keys(analysisObj).length === 0) {
-                html += "<tr><td colspan='4'>No Carleon black market data found.</td></tr>";
+
+            const analysisArray = Object.entries(analysisObj);
+
+            let html = `
+                <table>
+                    <thead>
+                        <tr>
+                            <th></th>
+                            <th class="sortable" data-column="itemName">Item Name</th>
+                            <th class="sortable" data-column="cityAvgPrice">City Avg Price</th>
+                            <th class="sortable" data-column="carleonPrice">Carleon Price</th>
+                            <th class="sortable" data-column="profitable">Profitable?</th>
+                            <th class="sortable" data-column="priceDifference">Price Diff</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            if (analysisArray.length === 0) {
+                html += "<tr><td colspan='6'>No Carleon black market data found.</td></tr>";
             } else {
-                Object.entries(analysisObj).forEach(([itemId, data]) => {
-                    html += `<tr>
-                                <td>${itemId}</td>
-                                <td>${UTILSModule.formatNumber(data.cityAvgPrice)}</td>
-                                <td>${UTILSModule.formatNumber(data.carleonPrice)}</td>
-                                <td>${!data.profitable ? "Yes" : "No"}</td>
-                             </tr>`;
+                analysisArray.forEach(([itemId, data]) => {
+                    const itemName = getItemNameById(itemId);
+                    html += `
+                        <tr>
+                            <td>
+                                <button
+                                  class="open-link-button"
+                                  onclick="window.open('https://albiononline2d.com/en/item/id/${itemId}', '_blank')"
+                                  title="Open AlbionOnline2D"
+                                >
+                                  🔗
+                                </button>
+                                  <button
+                                    class="select-button"
+                                    onclick="selectRow(this)"
+                                    title="Select Item"
+                                  >
+                                    ⭐
+                                  </button>
+                            </td>
+                            <td>${itemName}</td>
+                            <td>${UTILSModule.formatNumber(data.cityAvgPrice)}</td>
+                            <td>${UTILSModule.formatNumber(data.carleonPrice)}</td>
+                            <td>${data.profitable ? "Yes" : "No"}</td>
+                            <td>${UTILSModule.formatNumber(data.priceDifference)}</td>
+                        </tr>
+                    `;
                 });
             }
-            html += "</tbody></table>";
+            html += `</tbody></table>`;
             tableContainer.innerHTML = html;
+
+            const tableElem = tableContainer.querySelector("table");
+            const headers = tableElem.querySelectorAll(".sortable");
+            headers.forEach((header) => {
+                const column = header.getAttribute("data-column");
+                header.addEventListener("click", () => {
+                    this.sortTable(
+                        "analysis",
+                        [...analysisArray],
+                        column === "itemId" ? 0 : column,
+                        (sortedData) => this.renderBlackMarketAnalysisTable(sortedData)
+                    );
+                });
+            });
         },
 
         renderPotentialBlackMarketTable(potentialItems) {
             const tableContainer = document.getElementById("blackMarketTableContainer");
             if (!tableContainer) return;
-            let html = "<table><thead><tr><th>Item ID</th><th>Trend</th><th>Direction</th><th>Avg Sell Count</th><th>High Demand</th><th>Profitable?</th></tr></thead><tbody>";
-            if (Object.keys(potentialItems).length === 0) {
-                html += "<tr><td colspan='6'>No potential black market items found.</td></tr>";
+
+            const potentialArray = Object.entries(potentialItems);
+
+            let html = `
+                <table>
+                    <thead>
+                        <tr>
+                            <th></th>
+                            <th class="sortable" data-column="itemName">Item Name</th>
+                            <th class="sortable" data-column="trend">Trend</th>
+                            <th class="sortable" data-column="direction">Direction</th>
+                            <th class="sortable" data-column="diffPercent">% Change</th>
+                            <th class="sortable" data-column="avgSellCount">Avg Sell Count</th>
+                            <th class="sortable" data-column="maxSellCount">Max Sell Count</th>
+                            <th class="sortable" data-column="highDemand">High Demand?</th>
+                            <th class="sortable" data-column="profitable">Profitable?</th>
+                            <th class="sortable" data-column="priceDifference">Price Diff</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            if (potentialArray.length === 0) {
+                html += "<tr><td colspan='10'>No potential black market items found.</td></tr>";
             } else {
-                Object.entries(potentialItems).forEach(([itemId, data]) => {
-                    html += `<tr>
-                                <td>${itemId}</td>
-                                <td>${UTILSModule.formatNumber(data.trend)}</td>
-                                <td>${data.direction}</td>
-                                <td>${UTILSModule.formatNumber(data.avgSellCount)}</td>
-                                <td>${data.highDemand ? "Yes" : "No"}</td>
-                                <td>${!data.profitable ? "Yes" : "No"}</td>
-                             </tr>`;
+                potentialArray.forEach(([itemId, data]) => {
+                    const itemName = getItemNameById(itemId);
+                    html += `
+                        <tr>
+                            <td>
+                                <button
+                                  class="open-link-button"
+                                  onclick="window.open('https://albiononline2d.com/en/item/id/${itemId}', '_blank')"
+                                  title="Open AlbionOnline2D"
+                                >
+                                  🔗
+                                </button>
+                               <button
+                                class="select-button"
+                                onclick="selectRow(this)"
+                                title="Select Item"
+                              >
+                                ⭐
+                              </button>
+                            </td>
+                            <td>${itemName}</td>
+                            <td>${UTILSModule.formatNumber(data.trend)}</td>
+                            <td>${data.direction}</td>
+                            <td>${data.diffPercent ?? "0"}%</td>
+                            <td>${UTILSModule.formatNumber(data.avgSellCount)}</td>
+                            <td>${UTILSModule.formatNumber(data.maxSellCount)}</td>
+                            <td>${data.highDemand ? "Yes" : "No"}</td>
+                            <td>${data.profitable ? "Yes" : "No"}</td>
+                            <td>${UTILSModule.formatNumber(data.priceDifference)}</td>
+                        </tr>
+                    `;
                 });
             }
-            html += "</tbody></table>";
+            html += `</tbody></table>`;
             tableContainer.innerHTML = html;
+
+            const tableElem = tableContainer.querySelector("table");
+            const headers = tableElem.querySelectorAll(".sortable");
+            headers.forEach((header) => {
+                const column = header.getAttribute("data-column");
+                header.addEventListener("click", () => {
+                    this.sortTable(
+                        "potentialBlackMarket",
+                        [...potentialArray],
+                        column === "itemId" ? 0 : column,
+                        (sortedData) => this.renderPotentialBlackMarketTable(sortedData)
+                    );
+                });
+            });
         }
     };
 
-    // Функція для ініціалізації вкладок
     function initializeTabs() {
         const tabButtons = document.querySelectorAll('.tab-button');
         const tabContents = document.querySelectorAll('.tab-content');
-
-        // Зчитуємо останню активну вкладку з localStorage
         const activeTab = 'trends';
 
         tabButtons.forEach(button => {
@@ -231,25 +496,15 @@ import {blackMarketCategories} from "../../data/categories.js";
 
             button.addEventListener('click', () => {
                 const target = button.getAttribute('data-tab');
-
-                // Видаляємо клас active з усіх кнопок
                 tabButtons.forEach(btn => btn.classList.remove('active'));
-                // Додаємо клас active до натиснутої кнопки
                 button.classList.add('active');
-
-                // Приховуємо всі контейнери
                 tabContents.forEach(content => content.classList.remove('active'));
-                // Показуємо цільовий контейнер
                 document.getElementById(target).classList.add('active');
-
-                // Зберігаємо активну вкладку в localStorage
                 localStorage.setItem('activeTab', target);
             });
         });
     }
 
-
-    // Load data and perform extended analysis
     async function loadAndAnalyzeData() {
         console.log("Starting to load data including Carleon black market...");
         const db = await DBModule.openDatabase(CONFIG);
@@ -263,68 +518,56 @@ import {blackMarketCategories} from "../../data/categories.js";
 
         return new Promise((resolve, reject) => {
             transaction.oncomplete = () => {
-                setItemsData(getItems.result?.value)
+                setItemsData(getItems.result?.value);
                 globalAllChartsData = getCharts.result?.value.filter(el => blackMarketCategories.includes(el.Category));
                 globalAllHistoryData = getHistory.result?.value.filter(el => {
-                    console.log(el.Category)
-                    return blackMarketCategories.includes(el.Category)
+                    return blackMarketCategories.includes(el.Category);
                 });
 
                 const groupedData = globalAllHistoryData.reduce((acc, item) => {
-                    const { item_id, location, data } = item;
-
+                    const {item_id, location, data} = item;
                     if (!item_id) {
-                        console.warn("Об'єкт без itemTypeId:", item);
+                        console.warn("Object missing item_id:", item);
                         return acc;
                     }
-
                     if (!acc[item_id]) {
-                        acc[item_id] = {
-                            nonBlackMarket: [],
-                            blackMarket: []
-                        };
+                        acc[item_id] = {nonBlackMarket: [], blackMarket: []};
                     }
-
-                    if (typeof location === "string" && location.trim().toLowerCase() === "black market".toLowerCase()) {
+                    if (typeof location === "string" && location.trim().toLowerCase() === "black market") {
                         acc[item_id].blackMarket.push(...data);
                     } else {
                         acc[item_id].nonBlackMarket.push(...data);
                     }
-
                     return acc;
                 }, {});
 
+                const mappedData = Object.keys(groupedData)
+                    .filter(item_id => {
+                        const {nonBlackMarket, blackMarket} = groupedData[item_id];
+                        return blackMarket.length > 0 && nonBlackMarket.length > 0;
+                    })
+                    .map(item_id => {
+                        const {nonBlackMarket, blackMarket} = groupedData[item_id];
+                        const cityAvgPrice = calculateWeightedAverage(nonBlackMarket);
+                        let carleonPrice = 0;
+                        if (blackMarket.length > 0) {
+                            const latestRecord = blackMarket[blackMarket.length - 1];
+                            carleonPrice = latestRecord.avg_price || 0;
+                        }
+                        return {
+                            item_id,
+                            city_avg_price: cityAvgPrice,
+                            carleon_price: carleonPrice
+                        };
+                    });
 
-                const mappedData = Object.keys(groupedData).filter(item_id => {
-                    const { nonBlackMarket, blackMarket } = groupedData[item_id];
-                    return blackMarket.length > 0 && nonBlackMarket.length > 0;
-                }).map(item_id => {
-                    const { nonBlackMarket, blackMarket } = groupedData[item_id];
-
-                    // Обчислення city_avg_price як зваженого середнього по всіх не Black Market локаціях
-                    const cityAvgPrice = calculateWeightedAverage(nonBlackMarket);
-                    // Визначення carleon_price як останнього averagePrice у Black Market
-                    let carleonPrice = 0;
-                    if (blackMarket.length > 0) {
-                        const latestRecord = blackMarket[blackMarket.length - 1];
-                        carleonPrice = latestRecord.avg_price || 0;
-                    }
-
-                    return {
-                        item_id,
-                        city_avg_price: cityAvgPrice,
-                        carleon_price: carleonPrice,
-                    };
-                });
-
-
-                carleonBlackMarketData = mappedData
+                carleonBlackMarketData = mappedData;
 
                 if (itemsData && globalAllChartsData && globalAllHistoryData) {
                     console.log("All datasets found in IndexedDB. Proceeding with extended analysis.");
                     PredictionModule.analyzeExistingData();
                 } else {
-                    console.warn("One or more datasets not found in IndexedDB. Cannot perform full predictions.");
+                    console.warn("One or more datasets not found. Cannot perform full predictions.");
                 }
                 resolve(true);
             };
@@ -333,7 +576,6 @@ import {blackMarketCategories} from "../../data/categories.js";
                 console.error("IndexedDB transaction error:", event.target.errorCode);
                 reject(event.target.errorCode);
             };
-
         });
     }
 
@@ -345,13 +587,9 @@ import {blackMarketCategories} from "../../data/categories.js";
             const averagePrice = item.avg_price || 0;
             total += averagePrice * itemCount;
             count += itemCount;
-
         });
-
         return count > 0 ? total / count : 0;
     }
-
-// Перемапування даних
 
     window.loadAndAnalyzeData = loadAndAnalyzeData;
 })(window);

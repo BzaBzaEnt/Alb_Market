@@ -159,11 +159,18 @@ thead {
     color: #1c1c1e;
 }
 
-th, td {
+td {
     padding: 12px 15px;
     border: 1px solid #d1d1d6;
     text-align: left;
     font-size: 14px;
+}
+
+th {
+    padding: 12px 15px;
+    border: 1px solid #d1d1d6;
+    text-align: left;
+    font-size: 12px;
 }
 
 tr:nth-child(even) {
@@ -288,6 +295,16 @@ tr:nth-child(even) {
     justify-content: flex-start;
     align-items: center;
     margin-bottom: 5px;
+}
+.action-buttons {
+    display: flex;
+}
+.action-buttons * {
+    margin: 0 .25rem;
+}
+
+.sortable {
+    cursor: pointer;
 }
 
 .status-label {
