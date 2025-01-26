@@ -1,6 +1,11 @@
-// albion_prediction_module_extended.js
+import {UTILSModule} from './UTILSModule.js';
+import { itemsData, setItemsData} from "./store/global-data.js";
+import {DBModule} from "./DBModule.js";
 
 (function(window) {
+    // albion_prediction_module_extended.js
+
+
     const CONFIG = {
         LOCATIONS: ["Fort Sterling", "Martlock", "Thetford", "Lymhurst", "Black Market"],
         STORAGE_KEYS: {
@@ -15,19 +20,12 @@
         }
     };
 
-    let itemsData = [];
     let globalAllChartsData = [];
     let globalAllHistoryData = [];
     let carleonBlackMarketData = [];
     let trends = {};
     let predictions = {};
     let blackMarketAnalysis = {};
-
-    const Utils = {
-        formatNumber(value) {
-            return typeof value === 'number' ? value.toLocaleString('en-US') : value;
-        }
-    };
 
     document.addEventListener("DOMContentLoaded", async () => {
         const isPredictPage = document.body.getAttribute("data-page") === "predict";
@@ -152,7 +150,7 @@
 
             let html = "<table><thead><tr><th>Item ID</th><th>Trend</th><th>Direction</th></tr></thead><tbody>";
             Object.entries(trendsObj).forEach(([itemId, data]) => {
-                html += `<tr><td>${itemId}</td><td>${Utils.formatNumber(data.trend)}</td><td>${data.direction}</td></tr>`;
+                html += `<tr><td>${itemId}</td><td>${UTILSModule.formatNumber(data.trend)}</td><td>${data.direction}</td></tr>`;
             });
             html += "</tbody></table>";
             tableContainer.innerHTML = html;
@@ -164,7 +162,7 @@
 
             let html = "<table><thead><tr><th>Item ID</th><th>Avg Sell Count</th><th>High Demand</th></tr></thead><tbody>";
             Object.entries(predictionsObj).forEach(([itemId, data]) => {
-                html += `<tr><td>${itemId}</td><td>${Utils.formatNumber(data.avgSellCount)}</td><td>${data.highDemand ? "Yes" : "No"}</td></tr>`;
+                html += `<tr><td>${itemId}</td><td>${UTILSModule.formatNumber(data.avgSellCount)}</td><td>${data.highDemand ? "Yes" : "No"}</td></tr>`;
             });
             html += "</tbody></table>";
 
@@ -182,8 +180,8 @@
                 Object.entries(analysisObj).forEach(([itemId, data]) => {
                     html += `<tr>
                                 <td>${itemId}</td>
-                                <td>${Utils.formatNumber(data.cityAvgPrice)}</td>
-                                <td>${Utils.formatNumber(data.carleonPrice)}</td>
+                                <td>${UTILSModule.formatNumber(data.cityAvgPrice)}</td>
+                                <td>${UTILSModule.formatNumber(data.carleonPrice)}</td>
                                 <td>${!data.profitable ? "Yes" : "No"}</td>
                              </tr>`;
                 });
@@ -202,9 +200,9 @@
                 Object.entries(potentialItems).forEach(([itemId, data]) => {
                     html += `<tr>
                                 <td>${itemId}</td>
-                                <td>${Utils.formatNumber(data.trend)}</td>
+                                <td>${UTILSModule.formatNumber(data.trend)}</td>
                                 <td>${data.direction}</td>
-                                <td>${Utils.formatNumber(data.avgSellCount)}</td>
+                                <td>${UTILSModule.formatNumber(data.avgSellCount)}</td>
                                 <td>${data.highDemand ? "Yes" : "No"}</td>
                                 <td>${!data.profitable ? "Yes" : "No"}</td>
                              </tr>`;
@@ -264,7 +262,7 @@
 
         return new Promise((resolve, reject) => {
             transaction.oncomplete = () => {
-                itemsData = getItems.result?.value;
+                setItemsData(getItems.result?.value)
                 globalAllChartsData = getCharts.result?.value;
                 globalAllHistoryData = getHistory.result?.value;
 

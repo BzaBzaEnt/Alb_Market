@@ -1,12 +1,11 @@
 import {buildPairsWithHistory, calculateProfitMetrics, groupChartsData, groupHistoryData} from './calculation.js';
+import {itemsData, namesDict, categoryDict, setItemsData, setNamesDict, setCategoryDict} from './store/global-data.js';
+import {DBModule} from './DBModule.js';
+import {APIModule} from './APIModule.js';
+import {UTILSModule} from './UTILSModule.js';
 
 // Конфігурація
 const CONFIG = {
-    API: {
-        ITEMS: "https://raw.githubusercontent.com/broderickhyman/ao-bin-dumps/master/formatted/items.json",
-        CHARTS: "https://europe.albion-online-data.com/api/v2/stats/Charts",
-        HISTORY: "https://europe.albion-online-data.com/api/v2/stats/History"
-    },
     LOCATIONS: ["Fort Sterling", "Martlock", "Thetford", "Lymhurst", "Black Market"],
     COEFFICIENT: {
         MIN: 0.5,
@@ -35,9 +34,7 @@ const STORAGE_KEYS = {
 };
 
 // Глобальні змінні
-let itemsData = [];
-let namesDict = {};
-let categoryDict = {};
+
 let filteredItemIds = [];
 let globalAllChartsData = [];
 let globalAllHistoryData = [];
@@ -45,147 +42,6 @@ let globalRows = [];
 let swapBuySell = false;
 let sortDirections = {};
 
-// Утиліти
-const Utils = {
-    async sleep(ms) {
-        return new Promise(resolve => setTimeout(resolve, ms));
-    },
-
-    async countdown(seconds, progressEl, currentChunk, totalChunks, messagePrefix) {
-        for (let s = seconds; s > 0; s--) {
-            progressEl.textContent = `${messagePrefix} (chunk ${currentChunk}/${totalChunks}). Retry in ${s} sec...`;
-            await this.sleep(1000);
-        }
-    },
-
-    formatDate(date) {
-        return date.toISOString().slice(0, 16);
-    },
-
-    isDateString(value) {
-        return !isNaN(Date.parse(value));
-    },
-
-    formatNumber(value) {
-        if (typeof value === 'number') {
-            return value.toLocaleString('en-US');
-        }
-        return value;
-    },
-
-    chunkArray(array, size) {
-        const result = [];
-        for (let i = 0; i < array.length; i += size) {
-            result.push(array.slice(i, i + size));
-        }
-        return result;
-    }
-};
-
-// API функції
-const API = {
-    async fetchItems() {
-        try {
-            const response = await fetch(CONFIG.API.ITEMS);
-            if (!response.ok) {
-                throw new Error(`Items API error: ${response.status}`);
-            }
-            const data = await response.json();
-            itemsData = data;
-            namesDict = {};
-            categoryDict = {};
-
-            for (const item of data) {
-                const uid = item.UniqueName;
-                if (!uid) continue;
-                const locNames = item.LocalizedNames || {};
-                const enName = locNames["EN-US"] || item.LocalizationNameVariable || uid;
-                namesDict[uid] = enName;
-                const cat = item.ShopCategory || item.ItemCategory || "Uncategorized";
-                categoryDict[uid] = cat;
-            }
-            console.log("Items data fetched successfully.");
-            return true;
-        } catch (err) {
-            console.error("fetchItems error:", err);
-            return false;
-        }
-    },
-
-    async fetchChartsDataByChunks(itemIds, dateFrom, dateTo, timeScale, progressEl, chunkIndexRef, totalChunksGlobal) {
-        const allResults = [];
-        const chunks = Utils.chunkArray(itemIds, CONFIG.ITEMS_PER_CHUNK);
-
-        for (let i = 0; i < chunks.length; i++) {
-            const batch = chunks[i];
-            const itemsParam = batch.join(",");
-            const locParam = CONFIG.LOCATIONS.join(",");
-            const url = `${CONFIG.API.CHARTS}/${itemsParam}.json?locations=${locParam}&date=${dateFrom}&end_date=${dateTo}&time-scale=${timeScale}`;
-
-            while (true) {
-                try {
-                    chunkIndexRef.current++;
-                    progressEl.textContent = `Loading Charts chunk ${chunkIndexRef.current}/${totalChunksGlobal}...`;
-
-                    const response = await fetch(url);
-                    if (response.status === 429) {
-                        await Utils.countdown(CONFIG.RETRY_DELAY, progressEl, chunkIndexRef.current, totalChunksGlobal, "Rate limit (Charts)");
-                        continue;
-                    }
-                    if (!response.ok) {
-                        throw new Error(`Charts API error: ${response.status}`);
-                    }
-
-                    const data = await response.json();
-                    allResults.push(...data);
-                    break;
-                } catch (err) {
-                    console.error("Charts chunk error:", err);
-                    await Utils.countdown(CONFIG.RETRY_DELAY, progressEl, chunkIndexRef.current, totalChunksGlobal, "Error (Charts)");
-                }
-            }
-        }
-        console.log("Charts data fetched successfully.");
-        return allResults;
-    },
-
-    async fetchHistoryDataByChunks(itemIds, dateFrom, dateTo, timeScale, progressEl, chunkIndexRef, totalChunksGlobal) {
-        const allResults = [];
-        const chunks = Utils.chunkArray(itemIds, CONFIG.ITEMS_PER_CHUNK);
-
-        for (let i = 0; i < chunks.length; i++) {
-            const batch = chunks[i];
-            const itemsParam = batch.join(",");
-            const locParam = CONFIG.LOCATIONS.join(",");
-            const url = `${CONFIG.API.HISTORY}/${itemsParam}.json?locations=${locParam}&date=${dateFrom}&end_date=${dateTo}&time-scale=${timeScale}`;
-
-            while (true) {
-                try {
-                    chunkIndexRef.current++;
-                    progressEl.textContent = `Loading History chunk ${chunkIndexRef.current}/${totalChunksGlobal}...`;
-
-                    const response = await fetch(url);
-                    if (response.status === 429) {
-                        await Utils.countdown(CONFIG.RETRY_DELAY, progressEl, chunkIndexRef.current, totalChunksGlobal, "Rate limit (History)");
-                        continue;
-                    }
-                    if (!response.ok) {
-                        throw new Error(`History API error: ${response.status}`);
-                    }
-
-                    const data = await response.json();
-                    allResults.push(...data);
-                    break;
-                } catch (err) {
-                    console.error("History chunk error:", err);
-                    await Utils.countdown(CONFIG.RETRY_DELAY, progressEl, chunkIndexRef.current, totalChunksGlobal, "Error (History)");
-                }
-            }
-        }
-        console.log("History data fetched successfully.");
-        return allResults;
-    }
-};
 
 // Обробка даних
 const DataProcessor = {
@@ -269,7 +125,7 @@ const UI = {
                 } else if (col === "item_quality") {
                     value = (value - 1).toString();
                 } else if (col.includes('price') || col === 'potential_profit') {
-                    value = Utils.formatNumber(value);
+                    value = UTILSModule.formatNumber(value);
                     classes.push('number-cell');
                 } else if (col.includes('coefficient') || col === 'roi') {
                     if (value > 3) classes.push('high-value');
@@ -356,8 +212,8 @@ const UI = {
                 return direction ? numA - numB : numB - numA;
             }
 
-            const dateA = Utils.isDateString(aVal) ? new Date(aVal) : null;
-            const dateB = Utils.isDateString(bVal) ? new Date(bVal) : null;
+            const dateA = UTILSModule.isDateString(aVal) ? new Date(aVal) : null;
+            const dateB = UTILSModule.isDateString(bVal) ? new Date(bVal) : null;
             if (dateA && dateB) {
                 return direction ? dateA - dateB : dateB - dateA;
             }
@@ -436,7 +292,7 @@ const UI = {
         cells[14].textContent = smartCoef.toFixed(4);
 
         const metrics = calculateProfitMetrics(buyPrice, sellPrice, historyBuyCount, historySellCount);
-        cells[15].textContent = Utils.formatNumber(metrics.potentialProfit);
+        cells[15].textContent = UTILSModule.formatNumber(metrics.potentialProfit);
         cells[16].textContent = metrics.roi;
 
         this.updateRowStyles(row);
@@ -492,10 +348,9 @@ window.addEventListener("load", async () => {
             progressEl.textContent = "Loaded data from IndexedDB.";
             return;
         }
-
         // Якщо даних немає, завантажуємо з API
         // Завантажуємо базові дані
-        const success = await API.fetchItems();
+        const success = await APIModule.fetchItems();
         if (!success) {
             progressEl.textContent = "Failed to load item data.";
             return;
@@ -520,8 +375,8 @@ window.addEventListener("load", async () => {
         const now = new Date();
         const yesterday = new Date(now.getTime() - 24 * 3600 * 1000);
 
-        document.getElementById("dateFromInput").value = Utils.formatDate(yesterday);
-        document.getElementById("dateToInput").value = Utils.formatDate(now);
+        document.getElementById("dateFromInput").value = UTILSModule.formatDate(yesterday);
+        document.getElementById("dateToInput").value = UTILSModule.formatDate(now);
 
 
         // Перше завантаження
@@ -575,7 +430,7 @@ async function onReloadData() {
         const chunkIndexRef = {current: 0};
         // Завантажуємо дані
         const [chartsData, historyData] = await Promise.all([
-            API.fetchChartsDataByChunks(
+            APIModule.fetchChartsDataByChunks(
                 itemIdsForRequest,
                 dateFromValue,
                 dateToValue,
@@ -584,7 +439,7 @@ async function onReloadData() {
                 chunkIndexRef,
                 totalChunksGlobal
             ),
-            API.fetchHistoryDataByChunks(
+            APIModule.fetchHistoryDataByChunks(
                 itemIdsForRequest,
                 dateFromValue,
                 dateToValue,
@@ -669,15 +524,15 @@ async function loadDataFromIndexedDB() {
                 const charts = getCharts.result?.value;
                 const history = getHistory.result?.value;
                 if (items && charts && history) {
-                    itemsData = items;
+                    setItemsData(items)
                     globalAllChartsData = charts;
                     globalAllHistoryData = history;
 
                     console.log("Дані завантажені з IndexedDB.");
 
                     // Відновлюємо namesDict та categoryDict
-                    namesDict = {};
-                    categoryDict = {};
+                    setNamesDict({})
+                    setCategoryDict({})
                     itemsData.forEach(item => {
                         const uid = item.UniqueName;
                         if (!uid) return;

@@ -1,5 +1,5 @@
 // DBModule.js
-const DBModule = (() => {
+export const DBModule = (() => {
     async function openDatabase(config) {
         return new Promise((resolve, reject) => {
 
