@@ -184,7 +184,7 @@
                                 <td>${itemId}</td>
                                 <td>${Utils.formatNumber(data.cityAvgPrice)}</td>
                                 <td>${Utils.formatNumber(data.carleonPrice)}</td>
-                                <td>${data.profitable ? "Yes" : "No"}</td>
+                                <td>${!data.profitable ? "Yes" : "No"}</td>
                              </tr>`;
                 });
             }
@@ -206,7 +206,7 @@
                                 <td>${data.direction}</td>
                                 <td>${Utils.formatNumber(data.avgSellCount)}</td>
                                 <td>${data.highDemand ? "Yes" : "No"}</td>
-                                <td>${data.profitable ? "Yes" : "No"}</td>
+                                <td>${!data.profitable ? "Yes" : "No"}</td>
                              </tr>`;
                 });
             }
